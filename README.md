@@ -1,3 +1,5 @@
+![PyPI version](https://img.shields.io/pypi/v/beaverfe)
+[![PyPI Downloads](https://static.pepy.tech/badge/beaverfe)](https://pepy.tech/projects/beaverfe)
 ![Beaver FE Logo](assets/beaverfe-logo.png)
 
 ---
@@ -5,9 +7,6 @@
 # **Beaver FE**
 
 *A Versatile Toolkit for Automated Feature Engineering in Machine Learning*
-
-![PyPI version](https://img.shields.io/pypi/v/beaverfe)
-![Downloads](https://img.shields.io/pypi/dm/beaverfe)
 
 **Beaver FE** is a Python library that streamlines feature engineering for machine learning. It provides robust tools for preprocessing tasks such as scaling, normalization, feature creation (e.g., binning, mathematical operations), and encoding. It improves data quality and boosts model performance with minimal manual effort.
 
@@ -161,17 +160,61 @@ from beaverfe import auto_feature_pipeline
 ```
 
 #### **Parameters:**
+
 - `X` (`np.ndarray`): Feature matrix.
 - `y` (`np.ndarray`): Target variable.
 - `model`: A machine learning model implementing a `fit` method.
 - `scoring` (`str`): Evaluation metric (e.g., `"accuracy"`, `"f1"`, `"roc_auc"`).
 - `direction` (`str`, optional): Optimization direction: `"maximize"` or `"minimize"`. Default is `"maximize"`.
 - `cv` (`int` or callable, optional): Cross-validation strategy (e.g., number of folds or a custom splitter). Default is `None`.
-- `groups` (`np.ndarray`, optional): Group labels for beaverfe-validation splitting.
+- `groups` (`np.ndarray`, optional): Group labels for cross-validation. Useful for grouped CV.
 - `verbose` (`bool`, optional): Whether to display progress logs. Default is `True`.
 
+#### **Transformation Flags:**
+
+Each step of the pipeline can be selectively enabled or disabled.
+
+* `preprocessing` (`bool`, default=`True`):
+  Applies initial cleaning steps, including:
+
+  * Missing value indicators and imputation
+  * Outlier detection and handling
+  * Extraction of datetime features
+
+* `feature_generation` (`bool`, default=`True`):
+  Applies feature creation techniques such as:
+
+  * Spline transformations
+  * Binning of numeric features
+  * Arithmetic operations
+  * Categorical encodings
+  * Cyclical date transformations
+
+* `normalization` (`bool`, default=`True`):
+  Transforms feature distributions using:
+
+  * Non-linear transformations
+  * Quantile transformations
+  * Normalization/scaling
+
+* `dimensionality_reduction` (`bool`, default=`True`):
+  Reduces feature space through:
+
+  * Feature selection (based on performance)
+  * Projection-based dimensionality reduction (e.g., PCA)
+
+#### **Execution Order:**
+
+Transformations are applied in the following order:
+
+1. Preprocessing (missing values, outliers, datetime)
+2. Feature Generation (splines, binning, math ops, encodings)
+3. Normalization (non-linear transforms, quantiles, scaling)
+4. Dimensionality Reduction (column selection, PCA)
+
 #### **Returns:**
-- `List[dict]`: A list of transformation dictionaries to be used with `BeaverPipeline`.
+
+* `List[dict]`: A list of transformation configurations that can be passed to `BeaverPipeline`.
 
 ---
 

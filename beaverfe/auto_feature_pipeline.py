@@ -21,8 +21,13 @@ def auto_feature_pipeline(
     cv: Union[int, Callable] = None,
     groups: Optional[np.ndarray] = None,
     verbose: bool = True,
+    preprocessing: bool = True,
+    feature_generation: bool = True,
+    normalization: bool = True,
+    dimensionality_reduction: bool = True,
 ) -> List[dict]:
-    """Automatically applies a series of data transformations to improve model performance.
+    """
+    Automatically applies a series of data transformations to improve model performance.
 
     Args:
         X (np.ndarray): Feature matrix.
@@ -31,11 +36,15 @@ def auto_feature_pipeline(
         scoring (str): Scoring metric for evaluation.
         direction (str, optional): "maximize" or "minimize". Defaults to "maximize".
         cv (Union[int, Callable], optional): Cross-validation strategy. Defaults to None.
-        groups (Optional[np.ndarray], optional): Group labels for beaverfe-validation splitting. Defaults to None.
+        groups (Optional[np.ndarray], optional): Group labels for cross-validation splitting. Defaults to None.
         verbose (bool, optional): Whether to print progress messages. Defaults to True.
+        preprocessing (bool, optional): Whether to apply preprocessing steps (missing values, outliers, datetime). Defaults to True.
+        feature_generation (bool, optional): Whether to apply feature generation (splines, binning, math ops, categorical encoding). Defaults to True.
+        normalization (bool, optional): Whether to apply normalization or transformation of distributions. Defaults to True.
+        dimensionality_reduction (bool, optional): Whether to apply column selection and dimensionality reduction. Defaults to True.
 
     Returns:
-        List[dict]: A list of applied transformations.
+        List[dict]: A list of transformation steps that were applied, including their names and parameters.
     """
 
     logger = VerboseLogger(verbose)
@@ -65,138 +74,161 @@ def auto_feature_pipeline(
         return X_t, transformations, tracked_columns, new_columns
 
     # Apply Missing and Outlier handling
-    transformer = pc.MissingValuesIndicatorParameterSelector()
-    X, transformations, tracked_columns, new_columns = apply_wrapper(
-        transformer, X, y, transformations, tracked_columns
-    )
-    exclude_from_dimred.update(new_columns)
+    if preprocessing:
+        transformer = pc.MissingValuesIndicatorParameterSelector()
+        X, transformations, tracked_columns, new_columns = apply_wrapper(
+            transformer, X, y, transformations, tracked_columns
+        )
+        exclude_from_dimred.update(new_columns)
 
-    transformer = pc.MissingValuesHandlerParameterSelector()
-    X, transformations, tracked_columns, _ = apply_wrapper(
-        transformer, X, y, transformations, tracked_columns
-    )
+        transformer = pc.MissingValuesHandlerParameterSelector()
+        X, transformations, tracked_columns, _ = apply_wrapper(
+            transformer, X, y, transformations, tracked_columns
+        )
 
-    transformer = pc.OutliersParameterSelector()
-    X, transformations, tracked_columns, _ = apply_wrapper(
-        transformer, X, y, transformations, tracked_columns
-    )
+        transformer = pc.OutliersParameterSelector()
+        X, transformations, tracked_columns, _ = apply_wrapper(
+            transformer, X, y, transformations, tracked_columns
+        )
 
     # Feature Engineering
-    transformer = pc.SplineTransformationParameterSelector()
-    X, transformations, tracked_columns, new_columns = apply_wrapper(
-        transformer, X, y, transformations, tracked_columns, subset=initial_num_columns
-    )
-    exclude_from_selection.update(new_columns)
-    exclude_from_dimred.update(new_columns)
-
-    transformer = pc.NumericalBinningParameterSelector()
-    X, transformations, tracked_columns, new_columns = apply_wrapper(
-        transformer, X, y, transformations, tracked_columns, subset=initial_num_columns
-    )
-    exclude_from_dimred.update(new_columns)
-
-    # Distribution Transformations (choose best)
-    transformations_1, transformations_2 = [], []
-    tracked_columns_1, tracked_columns_2 = [], []
-
-    ## Option 1: NonLinear + Normalization
-    transformer = pc.NonLinearTransformationParameterSelector()
-    X_1, transformations_1, tracked_columns_1, _ = apply_wrapper(
-        transformer, X, y, transformations_1, tracked_columns_1
-    )
-
-    transformer = pc.NormalizationParameterSelector()
-    X_1, transformations_1, tracked_columns_1, _ = apply_wrapper(
-        transformer, X_1, y, transformations_1, tracked_columns_1
-    )
-
-    ## Option 2: Quantile Transformation
-    transformer = pc.QuantileTransformationParameterSelector()
-    X_2, transformations_2, tracked_columns_2, _ = apply_wrapper(
-        transformer, X, y, transformations_2, tracked_columns_2
-    )
-
-    ## Choose best transformation approach
-    score_1 = evaluate_model(X_1, y, model, scoring, cv, groups)
-    score_2 = evaluate_model(X_2, y, model, scoring, cv, groups)
-
-    if score_1 > score_2:
-        X = X_1
-        transformations.extend(transformations_1)
-        tracked_columns.extend(tracked_columns_1)
-    else:
-        X = X_2
-        transformations.extend(transformations_2)
-        tracked_columns.extend(tracked_columns_2)
-
-    # Apply Mathematical Operations
-    transformer = pc.MathematicalOperationsParameterSelector()
-    X, transformations, tracked_columns, _ = apply_wrapper(
-        transformer, X, y, transformations, tracked_columns, subset=initial_num_columns
-    )
-
-    # Final scaling after all transformations
-    transformer = pc.ScaleTransformationParameterSelector()
-    X, transformations, tracked_columns, _ = apply_wrapper(
-        transformer, X, y, transformations, tracked_columns
-    )
-
-    # Periodic Features
-    transformer = pc.DateTimeTransformerParameterSelector()
-    X, transformations, tracked_columns, datetime_columns = apply_wrapper(
-        transformer, X, y, transformations, tracked_columns
-    )
-
-    if datetime_columns:
-        transformer = pc.CyclicalFeaturesTransformerParameterSelector()
+    if feature_generation:
+        transformer = pc.SplineTransformationParameterSelector()
         X, transformations, tracked_columns, new_columns = apply_wrapper(
             transformer,
             X,
             y,
             transformations,
             tracked_columns,
-            subset=list(datetime_columns),
+            subset=initial_num_columns,
+        )
+        exclude_from_selection.update(new_columns)
+        exclude_from_dimred.update(new_columns)
+
+        transformer = pc.NumericalBinningParameterSelector()
+        X, transformations, tracked_columns, new_columns = apply_wrapper(
+            transformer,
+            X,
+            y,
+            transformations,
+            tracked_columns,
+            subset=initial_num_columns,
         )
         exclude_from_dimred.update(new_columns)
 
-    # Categorical Encoding
-    transformer = pc.CategoricalEncodingParameterSelector()
-    X, transformations, tracked_columns, new_columns = apply_wrapper(
-        transformer, X, y, transformations, tracked_columns
-    )
-    exclude_from_selection.update(new_columns)
-    exclude_from_dimred.update(new_columns)
+        transformer = pc.MathematicalOperationsParameterSelector()
+        X, transformations, tracked_columns, _ = apply_wrapper(
+            transformer,
+            X,
+            y,
+            transformations,
+            tracked_columns,
+            subset=initial_num_columns,
+        )
 
-    # Dimensionality Reduction
-    candidate_columns = dtypes.numerical_columns(X)
-    columns_for_selection = [
-        col for col in candidate_columns if col not in exclude_from_selection
-    ]
+    if normalization:
+        # Distribution Transformations (choose best)
+        transformations_1, transformations_2 = [], []
+        tracked_columns_1, tracked_columns_2 = [], []
 
-    transformer = pc.ColumnSelectionParameterSelector()
-    X, transformations, tracked_columns, _ = apply_wrapper(
-        transformer,
-        X,
-        y,
-        transformations,
-        tracked_columns,
-        subset=columns_for_selection,
-    )
+        ## Option 1: NonLinear + Normalization
+        transformer = pc.NonLinearTransformationParameterSelector()
+        X_1, transformations_1, tracked_columns_1, _ = apply_wrapper(
+            transformer, X, y, transformations_1, tracked_columns_1
+        )
 
-    candidate_columns = dtypes.numerical_columns(X)
-    columns_for_dimred = [
-        col for col in candidate_columns if col not in exclude_from_dimred
-    ]
+        transformer = pc.NormalizationParameterSelector()
+        X_1, transformations_1, tracked_columns_1, _ = apply_wrapper(
+            transformer, X_1, y, transformations_1, tracked_columns_1
+        )
 
-    transformer = pc.DimensionalityReductionParameterSelector()
-    X, transformations, tracked_columns, _ = apply_wrapper(
-        transformer,
-        X,
-        y,
-        transformations,
-        tracked_columns,
-        subset=columns_for_dimred,
-    )
+        ## Option 2: Quantile Transformation
+        transformer = pc.QuantileTransformationParameterSelector()
+        X_2, transformations_2, tracked_columns_2, _ = apply_wrapper(
+            transformer, X, y, transformations_2, tracked_columns_2
+        )
+
+        ## Choose best transformation approach
+        score_1 = evaluate_model(X_1, y, model, scoring, cv, groups)
+        score_2 = evaluate_model(X_2, y, model, scoring, cv, groups)
+
+        if score_1 > score_2:
+            X = X_1
+            transformations.extend(transformations_1)
+            tracked_columns.extend(tracked_columns_1)
+        else:
+            X = X_2
+            transformations.extend(transformations_2)
+            tracked_columns.extend(tracked_columns_2)
+
+        # Final scaling after all transformations
+        transformer = pc.ScaleTransformationParameterSelector()
+        X, transformations, tracked_columns, _ = apply_wrapper(
+            transformer, X, y, transformations, tracked_columns
+        )
+
+    if preprocessing:
+        # Periodic Features
+        transformer = pc.DateTimeTransformerParameterSelector()
+        X, transformations, tracked_columns, datetime_columns = apply_wrapper(
+            transformer, X, y, transformations, tracked_columns
+        )
+    else:
+        datetime_columns = []
+
+    if feature_generation:
+        # Cyclical features
+        if datetime_columns:
+            transformer = pc.CyclicalFeaturesTransformerParameterSelector()
+            X, transformations, tracked_columns, new_columns = apply_wrapper(
+                transformer,
+                X,
+                y,
+                transformations,
+                tracked_columns,
+                subset=list(datetime_columns),
+            )
+            exclude_from_dimred.update(new_columns)
+
+        # Categorical Encoding
+        transformer = pc.CategoricalEncodingParameterSelector()
+        X, transformations, tracked_columns, new_columns = apply_wrapper(
+            transformer, X, y, transformations, tracked_columns
+        )
+        exclude_from_selection.update(new_columns)
+        exclude_from_dimred.update(new_columns)
+
+    if dimensionality_reduction:
+        # Dimensionality Reduction
+        candidate_columns = dtypes.numerical_columns(X)
+        columns_for_selection = [
+            col for col in candidate_columns if col not in exclude_from_selection
+        ]
+
+        transformer = pc.ColumnSelectionParameterSelector()
+        X, transformations, tracked_columns, _ = apply_wrapper(
+            transformer,
+            X,
+            y,
+            transformations,
+            tracked_columns,
+            subset=columns_for_selection,
+        )
+
+        candidate_columns = dtypes.numerical_columns(X)
+        columns_for_dimred = [
+            col for col in candidate_columns if col not in exclude_from_dimred
+        ]
+
+        transformer = pc.DimensionalityReductionParameterSelector()
+        X, transformations, tracked_columns, _ = apply_wrapper(
+            transformer,
+            X,
+            y,
+            transformations,
+            tracked_columns,
+            subset=columns_for_dimred,
+        )
 
     # Remove unnecessary tranformations
     final_columns = set(X.columns)
