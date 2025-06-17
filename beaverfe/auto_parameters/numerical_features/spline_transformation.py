@@ -9,8 +9,8 @@ from beaverfe.utils.verbose import VerboseLogger
 
 class SplineTransformationParameterSelector:
     N_KNOTS_OPTIONS = [5, 10]
-    DEGREE_OPTIONS = [3, 4]
-    EXTRAPOLATION_OPTIONS = ["constant", "linear"]
+    DEGREE_OPTIONS = [3]
+    EXTRAPOLATION_OPTIONS = ["linear"]
 
     def select_best_parameters(
         self, x, y, model, scoring, direction, cv, groups, logger: VerboseLogger

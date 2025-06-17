@@ -8,7 +8,7 @@ from beaverfe.utils.verbose import VerboseLogger
 
 
 class NormalizationParameterSelector:
-    NORMALIZATION_OPTIONS = ["l1", "l2"]
+    NORMALIZATION_OPTIONS = ["l2"]
 
     def select_best_parameters(
         self, X, y, model, scoring, direction: str, cv, groups, logger: VerboseLogger

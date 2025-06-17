@@ -8,8 +8,8 @@ from beaverfe.utils.verbose import VerboseLogger
 
 
 class ScaleTransformationParameterSelector:
-    SCALER_OPTIONS = ["min_max", "standard", "robust"]
-    QUANTILE_RANGE_OPTIONS = [5.0, 25.0]
+    SCALER_OPTIONS = ["standard", "robust"]
+    QUANTILE_RANGE_OPTIONS = [25.0]
 
     def select_best_parameters(
         self, X, y, model, scoring, direction: str, cv, groups, logger: VerboseLogger

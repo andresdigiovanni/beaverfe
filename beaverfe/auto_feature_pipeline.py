@@ -88,7 +88,12 @@ def auto_feature_pipeline(
 
         transformer = pc.OutliersParameterSelector()
         X, transformations, tracked_columns, _ = apply_wrapper(
-            transformer, X, y, transformations, tracked_columns
+            transformer,
+            X,
+            y,
+            transformations,
+            tracked_columns,
+            subset=initial_num_columns,
         )
 
     # Feature Engineering
@@ -131,13 +136,18 @@ def auto_feature_pipeline(
         transformations_1, transformations_2 = [], []
         tracked_columns_1, tracked_columns_2 = [], []
 
-        ## Option 1: NonLinear + Normalization
+        ## Option 1: NonLinear + Normalization + Scaler
         transformer = pc.NonLinearTransformationParameterSelector()
         X_1, transformations_1, tracked_columns_1, _ = apply_wrapper(
             transformer, X, y, transformations_1, tracked_columns_1
         )
 
         transformer = pc.NormalizationParameterSelector()
+        X_1, transformations_1, tracked_columns_1, _ = apply_wrapper(
+            transformer, X_1, y, transformations_1, tracked_columns_1
+        )
+
+        transformer = pc.ScaleTransformationParameterSelector()
         X_1, transformations_1, tracked_columns_1, _ = apply_wrapper(
             transformer, X_1, y, transformations_1, tracked_columns_1
         )
@@ -156,16 +166,16 @@ def auto_feature_pipeline(
             X = X_1
             transformations.extend(transformations_1)
             tracked_columns.extend(tracked_columns_1)
+            logger.task_result(
+                "Selected transformation strategy: Option 1 (NonLinear + Normalization + Scaler)"
+            )
         else:
             X = X_2
             transformations.extend(transformations_2)
             tracked_columns.extend(tracked_columns_2)
-
-        # Final scaling after all transformations
-        transformer = pc.ScaleTransformationParameterSelector()
-        X, transformations, tracked_columns, _ = apply_wrapper(
-            transformer, X, y, transformations, tracked_columns
-        )
+            logger.task_result(
+                "Selected transformation strategy: Option 2 (QuantileTransformer)"
+            )
 
     if preprocessing:
         # Periodic Features

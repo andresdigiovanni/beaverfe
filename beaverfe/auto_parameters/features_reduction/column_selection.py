@@ -19,7 +19,9 @@ class ColumnSelectionParameterSelector:
 
         logger.task_start("Beginning feature selection")
 
-        selector = RecursiveFeatureAddition(model, scoring, direction, cv, groups)
+        selector = RecursiveFeatureAddition(
+            model, scoring, direction, cv, groups, early_stopping=5, logger=logger
+        )
         selected_features = selector.fit(X_filtered, y)
 
         logger.task_result(f"{len(selected_features)} feature(s) selected")

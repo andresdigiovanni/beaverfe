@@ -8,8 +8,8 @@ from beaverfe.utils.verbose import VerboseLogger
 
 
 class NumericalBinningParameterSelector:
-    STRATEGIES = ["uniform", "quantile"]
-    BIN_COUNTS = [3, 8, 20]
+    STRATEGIES = ["quantile"]
+    BIN_COUNTS = [5, 10]
 
     def select_best_parameters(
         self, x, y, model, scoring, direction, cv, groups, logger: VerboseLogger
@@ -20,7 +20,6 @@ class NumericalBinningParameterSelector:
         all_combinations = list(product(self.STRATEGIES, self.BIN_COUNTS))
 
         logger.task_start("Starting numerical binning search")
-
         base_score = evaluate_model(x, y, model, scoring, cv, groups)
         logger.baseline(f"Base score: {base_score:.4f}")
 

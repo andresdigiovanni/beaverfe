@@ -63,21 +63,13 @@ class CategoricalEncodingParameterSelector:
         column_category_counts = {col: X[col].nunique() for col in categorical_columns}
 
         encoding_options = defaultdict(list)
-        base_encodings = [
-            "binary",
-            "catboost",
-            "count",
-            "hashing",
-            "label",
-            "loo",
-            "target",
-            "woe",
-        ]
 
         for column, unique_count in column_category_counts.items():
-            encodings = base_encodings.copy()
             if unique_count <= 15:
-                encodings.append("dummy")
-            encoding_options[column] = encodings
+                encoding_options[column] = ["dummy", "catboost", "target", "woe"]
+            elif unique_count <= 50:
+                encoding_options[column] = ["catboost", "binary", "target", "loo"]
+            else:
+                encoding_options[column] = ["catboost", "hashing", "target"]
 
         return encoding_options

@@ -7,7 +7,7 @@ from .shared import feature_importance
 
 class ProbeFeatureSelector:
     @staticmethod
-    def fit(X: pd.DataFrame, y, model, random_state: int = 42) -> list:
+    def fit(X: pd.DataFrame, y, model, random_state: int = 42) -> tuple:
         """
         Selects features based on their importance compared to a random noise feature.
 
@@ -18,7 +18,9 @@ class ProbeFeatureSelector:
             random_state (int, optional): Random seed for reproducibility. Defaults to 42.
 
         Returns:
-            list: List of selected feature names.
+            tuple:
+                - list of selected feature names
+                - dict with feature -> importance
         """
         X = X.copy()
 
@@ -58,4 +60,13 @@ class ProbeFeatureSelector:
 
             X = X[features_to_keep]
 
-        return X.columns.tolist()
+        # Build final score dict (excluding random_noise)
+        scores = {
+            row["feature"]: row["importance"]
+            for _, row in feature_importance_df.iterrows()
+            if row["feature"] != "random_noise"
+        }
+
+        selected = [f for f in features_to_keep if f != "random_noise"]
+
+        return selected, scores

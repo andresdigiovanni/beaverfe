@@ -1,5 +1,4 @@
 from beaverfe.transformations import MissingValuesIndicator
-from beaverfe.transformations.utils import dtypes
 from beaverfe.utils.verbose import VerboseLogger
 
 
@@ -7,11 +6,6 @@ class MissingValuesIndicatorParameterSelector:
     def select_best_parameters(
         self, X, y, model, scoring, direction, cv, groups, logger: VerboseLogger
     ):
-        # Keep only categorical and numerical columns
-        cat_columns = dtypes.categorical_columns(X)
-        num_columns = dtypes.numerical_columns(X)
-        X = X[cat_columns + num_columns]
-
         logger.task_start("Starting missing value indicator evaluation")
 
         columns_with_nulls = self._get_columns_with_nulls(X)
