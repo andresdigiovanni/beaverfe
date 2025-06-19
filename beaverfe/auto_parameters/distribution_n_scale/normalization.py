@@ -11,24 +11,47 @@ class NormalizationParameterSelector:
     NORMALIZATION_OPTIONS = ["l2"]
 
     def select_best_parameters(
-        self, X, y, model, scoring, direction: str, cv, groups, logger: VerboseLogger
+        self,
+        X,
+        y,
+        model,
+        scoring,
+        direction: str,
+        cv,
+        groups,
+        tol,
+        logger: VerboseLogger,
     ) -> Optional[Dict[str, Any]]:
-        logger.task_start("Beginning search for optimal normalization parameters.")
+        logger.task_start("Starting search for optimal normalization parameters.")
 
-        numeric_columns = dtypes.numerical_columns(X)
-        total_columns = len(numeric_columns)
+        columns = dtypes.numerical_columns(X)
+        if not columns:
+            logger.warn("No numerical columns found for normalization parameters.")
+            return None
+
+        n_columns = len(columns)
         selected_normalizations = {}
 
         base_score = evaluate_model(X, y, model, scoring, cv, groups)
         logger.baseline(f"Baseline score (no normalization): {base_score:.4f}")
 
-        for index, column in enumerate(numeric_columns, start=1):
+        for index, column in enumerate(columns, start=1):
             logger.task_update(
-                f"[{index}/{total_columns}] Evaluating normalization for column: '{column}'"
+                f"[{index}/{n_columns}] Evaluating normalization for column: '{column}'"
             )
 
             best_option = self._evaluate_column_normalizations(
-                X, y, model, scoring, base_score, column, direction, cv, groups, logger
+                X,
+                y,
+                model,
+                scoring,
+                base_score,
+                column,
+                direction,
+                cv,
+                groups,
+                tol,
+                logger,
             )
 
             if best_option:
@@ -57,6 +80,7 @@ class NormalizationParameterSelector:
         direction: str,
         cv,
         groups,
+        tol,
         logger: VerboseLogger,
     ) -> Dict[str, str]:
         best_score = base_score
@@ -67,7 +91,7 @@ class NormalizationParameterSelector:
             score = evaluate_model(X, y, model, scoring, cv, groups, transformation)
             logger.progress(f"   ↪ Tried '{method}' → Score: {score:.4f}")
 
-            if is_score_improved(score, best_score, direction):
+            if is_score_improved(score, best_score, direction, tol):
                 best_score = score
                 best_normalization = {column: method}
 

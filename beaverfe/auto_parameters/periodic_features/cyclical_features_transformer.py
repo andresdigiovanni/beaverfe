@@ -16,12 +16,12 @@ class CyclicalFeaturesTransformerParameterSelector:
     UNIQUE_VALUE_RATIO_THRESHOLD = 0.10
 
     def select_best_parameters(
-        self, x, y, model, scoring, direction, cv, groups, logger: VerboseLogger
+        self, x, y, model, scoring, direction, cv, groups, tol, logger: VerboseLogger
     ):
+        logger.task_start("Detecting cyclical features")
+
         numerical_columns = dtypes.numerical_columns(x)
         transformation_options = {}
-
-        logger.task_start("Detecting cyclical features")
 
         for column in numerical_columns:
             period = self._infer_cyclical_period(x, column)

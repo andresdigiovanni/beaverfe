@@ -4,7 +4,7 @@ from beaverfe.utils.verbose import VerboseLogger
 
 class MissingValuesIndicatorParameterSelector:
     def select_best_parameters(
-        self, X, y, model, scoring, direction, cv, groups, logger: VerboseLogger
+        self, X, y, model, scoring, direction, cv, groups, tol, logger: VerboseLogger
     ):
         logger.task_start("Starting missing value indicator evaluation")
 

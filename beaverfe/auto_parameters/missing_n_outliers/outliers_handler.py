@@ -12,7 +12,7 @@ from beaverfe.utils.verbose import VerboseLogger
 
 class OutliersParameterSelector:
     def select_best_parameters(
-        self, X, y, model, scoring, direction, cv, groups, logger: VerboseLogger
+        self, X, y, model, scoring, direction, cv, groups, tol, logger: VerboseLogger
     ):
         logger.task_start("Starting outlier handling search")
 
@@ -45,6 +45,7 @@ class OutliersParameterSelector:
                 direction,
                 cv,
                 groups,
+                tol,
                 base_score,
                 column,
                 actions,
@@ -88,6 +89,7 @@ class OutliersParameterSelector:
         direction,
         cv,
         groups,
+        tol,
         base_score,
         column,
         actions,
@@ -109,7 +111,7 @@ class OutliersParameterSelector:
                 f"   ↪ Tried {self._kwargs_to_string(kwargs, column)} → Score: {score:.4f}"
             )
 
-            if is_score_improved(score, best_score, direction):
+            if is_score_improved(score, best_score, direction, tol):
                 best_score = score
                 best_params = kwargs
 

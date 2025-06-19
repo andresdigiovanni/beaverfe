@@ -40,7 +40,7 @@ class NumericalBinning(BaseEstimator, TransformerMixin):
         X = X.copy().fillna(0)
 
         for column, (strategy, n_bins) in self.transformation_options.items():
-            binner_name = f"{column}__{strategy}_{n_bins}"
+            binner_name = f"{column}__bins_{strategy}_{n_bins}"
             binner = self._binners[column]
 
             X[binner_name] = binner.transform(X[[column]]).flatten()

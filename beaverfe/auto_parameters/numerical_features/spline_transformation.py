@@ -13,21 +13,36 @@ class SplineTransformationParameterSelector:
     EXTRAPOLATION_OPTIONS = ["linear"]
 
     def select_best_parameters(
-        self, x, y, model, scoring, direction, cv, groups, logger: VerboseLogger
+        self, x, y, model, scoring, direction, cv, groups, tol, logger: VerboseLogger
     ):
-        columns = dtypes.numerical_columns(x)
-        total_columns = len(columns)
-        best_transformations = {}
-
         logger.task_start("Starting spline transformation search")
+
+        columns = dtypes.numerical_columns(x)
+        if not columns:
+            logger.warn("No numerical columns found for spline transformations.")
+            return None
+
         base_score = evaluate_model(x, y, model, scoring, cv, groups)
         logger.baseline(f"Base score: {base_score:.4f}")
+
+        total_columns = len(columns)
+        best_transformations = {}
 
         for i, column in enumerate(columns, start=1):
             logger.task_update(f"[{i}/{total_columns}] Evaluating column: '{column}'")
 
             best_params = self._find_best_spline_params_for_column(
-                x, y, model, scoring, direction, cv, groups, base_score, column, logger
+                x,
+                y,
+                model,
+                scoring,
+                direction,
+                cv,
+                groups,
+                tol,
+                base_score,
+                column,
+                logger,
             )
 
             if best_params:
@@ -48,7 +63,18 @@ class SplineTransformationParameterSelector:
         return None
 
     def _find_best_spline_params_for_column(
-        self, x, y, model, scoring, direction, cv, groups, base_score, column, logger
+        self,
+        x,
+        y,
+        model,
+        scoring,
+        direction,
+        cv,
+        groups,
+        tol,
+        base_score,
+        column,
+        logger,
     ):
         best_score = base_score
         best_params = {}
@@ -70,7 +96,7 @@ class SplineTransformationParameterSelector:
                 f"   ↪ Tried extrapolation='{extrapolation}', degree={degree}, n_knots={n_knots} → Score: {score:.4f}"
             )
 
-            if is_score_improved(score, best_score, direction):
+            if is_score_improved(score, best_score, direction, tol):
                 best_score = score
                 best_params = params
 

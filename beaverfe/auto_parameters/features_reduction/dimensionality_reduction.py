@@ -8,7 +8,16 @@ from beaverfe.utils.verbose import VerboseLogger
 
 class DimensionalityReductionParameterSelector:
     def select_best_parameters(
-        self, X, y, model, scoring, direction: str, cv, groups, logger: VerboseLogger
+        self,
+        X,
+        y,
+        model,
+        scoring,
+        direction: str,
+        cv,
+        groups,
+        tol,
+        logger: VerboseLogger,
     ) -> Optional[Dict[str, Any]]:
         logger.task_start("Starting dimensionality reduction")
 
@@ -36,7 +45,7 @@ class DimensionalityReductionParameterSelector:
             )
             logger.progress(f"   ↪ Tried '{method}' → Score: {score:.4f}")
 
-            if is_score_improved(score, best_score, direction):
+            if is_score_improved(score, best_score, direction, tol):
                 best_score = score
                 best_method = method
                 best_n_components = n_components
@@ -59,12 +68,7 @@ class DimensionalityReductionParameterSelector:
         return None
 
     def _get_applicable_methods(self, X):
-        methods = ["lda", "pca", "truncated_svd"]
-
-        if X.shape[0] < 1_000:
-            methods.append("kernel_pca")
-
-        return methods
+        return ["lda", "pca", "truncated_svd"]
 
     def _search_optimal_components(
         self,

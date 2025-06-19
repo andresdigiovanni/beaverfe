@@ -11,12 +11,25 @@ class QuantileTransformationParameterSelector:
     TRANSFORMATION_OPTIONS = ["uniform", "normal"]
 
     def select_best_parameters(
-        self, X, y, model, scoring, direction: str, cv, groups, logger: VerboseLogger
+        self,
+        X,
+        y,
+        model,
+        scoring,
+        direction: str,
+        cv,
+        groups,
+        tol,
+        logger: VerboseLogger,
     ) -> Optional[Dict[str, Any]]:
-        logger.task_start("Beginning search for optimal quantile transformations.")
+        logger.task_start("Starting search for optimal quantile transformations.")
 
-        numeric_columns = dtypes.numerical_columns(X)
-        total_columns = len(numeric_columns)
+        columns = dtypes.numerical_columns(X)
+        if not columns:
+            logger.warn("No numerical columns found for quantile transformations.")
+            return None
+
+        n_columns = len(columns)
         selected_transformations = {}
 
         base_score = evaluate_model(X, y, model, scoring, cv, groups)
@@ -24,13 +37,21 @@ class QuantileTransformationParameterSelector:
             f"Baseline score (no quantile transformation): {base_score:.4f}"
         )
 
-        for index, column in enumerate(numeric_columns, start=1):
-            logger.task_update(
-                f"[{index}/{total_columns}] Evaluating column: '{column}'"
-            )
+        for index, column in enumerate(columns, start=1):
+            logger.task_update(f"[{index}/{n_columns}] Evaluating column: '{column}'")
 
             best_option = self._evaluate_column_transformations(
-                X, y, model, scoring, base_score, column, direction, cv, groups, logger
+                X,
+                y,
+                model,
+                scoring,
+                base_score,
+                column,
+                direction,
+                cv,
+                groups,
+                tol,
+                logger,
             )
 
             if best_option:
@@ -59,6 +80,7 @@ class QuantileTransformationParameterSelector:
         direction: str,
         cv,
         groups,
+        tol,
         logger: VerboseLogger,
     ) -> Dict[str, str]:
         best_score = base_score
@@ -69,7 +91,7 @@ class QuantileTransformationParameterSelector:
             score = evaluate_model(X, y, model, scoring, cv, groups, transformation)
             logger.progress(f"   ↪ Tried '{option}' → Score: {score:.4f}")
 
-            if is_score_improved(score, best_score, direction):
+            if is_score_improved(score, best_score, direction, tol):
                 best_score = score
                 best_transformation = {column: option}
 

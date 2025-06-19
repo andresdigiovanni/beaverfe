@@ -1,6 +1,6 @@
 [project]
 name = "beaverfe"
-version = "0.1.0"
+version = "0.2.1"
 description = "A Versatile Toolkit for Automated Feature Engineering in Machine Learning"
 authors = [{ name = "Andres Di Giovanni", email = "andresdigiovanni@gmail.com" }]
 readme = "README.md"
@@ -18,9 +18,11 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev-dependencies = [
+dev = [
     "pytest>=7.2.0",
     "ipykernel>=6.29.5",
+    "seaborn>=0.13.2",
+    "xgboost>=3.0.2",
 ]
 commits = [
     "pre-commit>=4.1.0",

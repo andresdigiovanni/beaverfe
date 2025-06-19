@@ -1,6 +1,8 @@
 from typing import Any, Dict
 
-from beaverfe.auto_parameters.shared import RecursiveFeatureAddition
+from sklearn.feature_selection import RFECV
+
+from beaverfe.auto_parameters.shared import PermutationRFECV
 from beaverfe.transformations import ColumnSelection
 from beaverfe.transformations.utils import dtypes
 from beaverfe.utils.verbose import VerboseLogger
@@ -8,21 +10,37 @@ from beaverfe.utils.verbose import VerboseLogger
 
 class ColumnSelectionParameterSelector:
     def select_best_parameters(
-        self, X, y, model, scoring, direction: str, cv, groups, logger: VerboseLogger
+        self,
+        X,
+        y,
+        model,
+        scoring,
+        direction: str,
+        cv,
+        groups,
+        tol,
+        logger: VerboseLogger,
     ) -> Dict[str, Any]:
         """
         Selects the most informative subset of features using recursive feature addition.
         """
 
-        numeric_columns = dtypes.numerical_columns(X)
-        X_filtered = X[numeric_columns]
+        logger.task_start("Starting feature selection")
 
-        logger.task_start("Beginning feature selection")
+        columns = dtypes.numerical_columns(X)
+        if not columns:
+            logger.warn("No numerical columns found for feature selection.")
+            return None
 
-        selector = RecursiveFeatureAddition(
-            model, scoring, direction, cv, groups, early_stopping=5, logger=logger
-        )
-        selected_features = selector.fit(X_filtered, y)
+        X_filtered = X[columns]
+
+        if hasattr(model, "feature_importances_") or hasattr(model, "coef_"):
+            rfecv = RFECV(estimator=model, scoring=scoring, cv=cv)
+        else:
+            rfecv = PermutationRFECV(estimator=model, scoring=scoring, cv=cv)
+
+        rfecv.fit(X_filtered, y, groups=groups)
+        selected_features = list(rfecv.get_feature_names_out())
 
         logger.task_result(f"{len(selected_features)} feature(s) selected")
 

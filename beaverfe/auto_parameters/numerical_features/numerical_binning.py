@@ -12,16 +12,21 @@ class NumericalBinningParameterSelector:
     BIN_COUNTS = [5, 10]
 
     def select_best_parameters(
-        self, x, y, model, scoring, direction, cv, groups, logger: VerboseLogger
+        self, x, y, model, scoring, direction, cv, groups, tol, logger: VerboseLogger
     ):
+        logger.task_start("Starting numerical binning search")
+
         columns = dtypes.numerical_columns(x)
+        if not columns:
+            logger.warn("No numerical columns found for nummerical binning.")
+            return None
+
+        base_score = evaluate_model(x, y, model, scoring, cv, groups)
+        logger.baseline(f"Base score: {base_score:.4f}")
+
         total_columns = len(columns)
         best_transformations = {}
         all_combinations = list(product(self.STRATEGIES, self.BIN_COUNTS))
-
-        logger.task_start("Starting numerical binning search")
-        base_score = evaluate_model(x, y, model, scoring, cv, groups)
-        logger.baseline(f"Base score: {base_score:.4f}")
 
         for i, column in enumerate(columns, start=1):
             n_unique = x[column].nunique()
@@ -42,7 +47,7 @@ class NumericalBinningParameterSelector:
                     f"   ↪ Tried strategy='{strategy}', bins={n_bins} → Score: {score:.4f}"
                 )
 
-                if is_score_improved(score, best_score, direction):
+                if is_score_improved(score, best_score, direction, tol):
                     best_score = score
                     best_column_params = (strategy, n_bins)
 

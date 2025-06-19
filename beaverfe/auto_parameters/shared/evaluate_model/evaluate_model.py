@@ -7,23 +7,23 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder
 
 
-# Custom selector to exclude datetime columns
-class ExcludeDatetimeColumns(BaseEstimator, TransformerMixin):
+# Custom transformer to drop datetime columns
+class DropDatetimeColumns(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
-        self.columns_ = X.select_dtypes(
-            exclude=["datetime64[ns]", "datetime64"]
+        self.columns_to_drop_ = X.select_dtypes(
+            include=["datetime64", "datetime64[ns]"]
         ).columns
         return self
 
     def transform(self, X):
-        return X[self.columns_]
+        return X.drop(columns=self.columns_to_drop_, errors="ignore")
 
 
 def build_pipeline(model, transformer=None):
     steps = []
 
     # Step 0: Drop datetime columns
-    steps.append(("drop_datetime", ExcludeDatetimeColumns()))
+    steps.append(("drop_datetime", DropDatetimeColumns()))
 
     # Step 1: Optional custom transformer
     if transformer:
@@ -38,44 +38,35 @@ def build_pipeline(model, transformer=None):
         [
             ("imputer", categorical_imputer),
             (
-                "label_encoder",
+                "encoder",
                 OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1),
             ),
         ]
     )
 
-    # Step 4: Combine both pipelines
+    # Step 4: Combine preprocessing steps
     preprocessor = ColumnTransformer(
         transformers=[
-            ("numeric", numeric_imputer, make_column_selector(dtype_include="number")),
+            ("num", numeric_imputer, make_column_selector(dtype_include=["number"])),
             (
-                "categorical",
+                "cat",
                 categorical_pipeline,
                 make_column_selector(dtype_include=["object", "category"]),
             ),
         ],
-        remainder="drop",  # drop unhandled types like datetime
+        remainder="drop",
     )
 
-    # Step 5: Add preprocessing and model
+    # Step 5: Assemble full pipeline
     steps.append(("preprocessing", preprocessor))
     steps.append(("model", model))
 
-    return Pipeline(steps=steps)
+    return Pipeline(steps)
 
 
-def evaluate_model(
-    x,
-    y,
-    model,
-    scoring,
-    cv=5,
-    groups=None,
-    transformer=None,
-):
+def evaluate_model(x, y, model, scoring, cv=5, groups=None, transformer=None):
     pipe = build_pipeline(model, transformer)
     scores = cross_val_score(
         pipe, x, y, scoring=scoring, cv=cv, groups=groups, n_jobs=-1
     )
-
     return np.mean(scores)

@@ -12,25 +12,45 @@ class ScaleTransformationParameterSelector:
     QUANTILE_RANGE_OPTIONS = [25.0]
 
     def select_best_parameters(
-        self, X, y, model, scoring, direction: str, cv, groups, logger: VerboseLogger
+        self,
+        X,
+        y,
+        model,
+        scoring,
+        direction: str,
+        cv,
+        groups,
+        tol,
+        logger: VerboseLogger,
     ) -> Optional[Dict[str, Any]]:
-        logger.task_start("Beginning search for optimal scaling transformations.")
+        logger.task_start("Starting search for optimal scaling transformations.")
 
-        numeric_columns = dtypes.numerical_columns(X)
-        total_columns = len(numeric_columns)
+        columns = dtypes.numerical_columns(X)
+        if not columns:
+            logger.warn("No numerical columns found for scaling transformations.")
+            return None
 
+        n_columns = len(columns)
         selected_scalers = {"transformation_options": {}, "quantile_range": {}}
 
         base_score = evaluate_model(X, y, model, scoring, cv, groups)
         logger.baseline(f"Baseline score (no scaling): {base_score:.4f}")
 
-        for index, column in enumerate(numeric_columns, start=1):
-            logger.task_update(
-                f"[{index}/{total_columns}] Evaluating column: '{column}'"
-            )
+        for index, column in enumerate(columns, start=1):
+            logger.task_update(f"[{index}/{n_columns}] Evaluating column: '{column}'")
 
             best_for_column = self._evaluate_scalers_for_column(
-                X, y, model, scoring, base_score, column, direction, cv, groups, logger
+                X,
+                y,
+                model,
+                scoring,
+                base_score,
+                column,
+                direction,
+                cv,
+                groups,
+                tol,
+                logger,
             )
 
             if best_for_column:
@@ -70,6 +90,7 @@ class ScaleTransformationParameterSelector:
         direction: str,
         cv,
         groups,
+        tol,
         logger: VerboseLogger,
     ) -> Dict[str, Dict[str, Any]]:
         best_score = base_score
@@ -91,7 +112,7 @@ class ScaleTransformationParameterSelector:
                         f"   ↪ Tried '{scaler}' (quantile range {q_range}) → Score: {score:.4f}"
                     )
 
-                    if is_score_improved(score, best_score, direction):
+                    if is_score_improved(score, best_score, direction, tol):
                         best_score = score
                         best_params = params
             else:
@@ -100,7 +121,7 @@ class ScaleTransformationParameterSelector:
                 score = evaluate_model(X, y, model, scoring, cv, groups, transformer)
                 logger.progress(f"   ↪ Tried '{scaler}' → Score: {score:.4f}")
 
-                if is_score_improved(score, best_score, direction):
+                if is_score_improved(score, best_score, direction, tol):
                     best_score = score
                     best_params = params
 

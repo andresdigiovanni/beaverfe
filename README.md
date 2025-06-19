@@ -1,5 +1,6 @@
 ![PyPI version](https://img.shields.io/pypi/v/beaverfe)
 [![PyPI Downloads](https://static.pepy.tech/badge/beaverfe)](https://pepy.tech/projects/beaverfe)
+
 ![Beaver FE Logo](assets/beaverfe-logo.png)
 
 ---
@@ -16,6 +17,7 @@
   - [Automated Feature Engineering](#automated-feature-engineering)
   - [Manual Transformations](#manual-transformations)
   - [Saving and Loading Pipelines](#saving-and-loading-pipelines)
+- [Benchmark Results](#benchmark-results) 
 - [Core API](#core-api)
 - [Available Transformations](#available-transformations)
   - [Missing Values & Outliers](#missing-values-and-outliers)
@@ -145,6 +147,33 @@ with open("beaverfe_transformations.pkl", "rb") as f:
 
 bfe.set_params(**params)
 ```
+
+---
+
+<a id="benchmark-results"></a>
+## 📊 Benchmark Results
+
+Beaver FE was evaluated on several datasets and models to assess its impact on model performance. The table below compares baseline accuracy versus accuracy after applying Beaver FE transformations:
+
+| Dataset | Model                | Baseline | BeaverFE | Improvement |
+|---------|----------------------|----------|----------|-------------|
+| **adult** |                      |          |          |             |
+|          | LDA                  | 0.848    | 0.905    | +6.72%      |
+|          | LogisticRegression   | 0.822    | 0.900    | +9.49%      |
+|          | XGBoost              | 0.921    | 0.923    | +0.22%      |
+| **bank**  |                      |          |          |             |
+|          | LDA                  | 0.874    | 0.911    | +4.23%      |
+|          | LogisticRegression   | 0.854    | 0.909    | +6.44%      |
+|          | XGBoost              | 0.927    | 0.929    | +0.22%      |
+| **credit**|                      |          |          |             |
+|          | LDA                  | 0.717    | 0.761    | +6.14%      |
+|          | LogisticRegression   | 0.696    | 0.747    | +7.33%      |
+|          | XGBoost              | 0.760    | 0.757    | -0.39%      |
+
+
+> 🚨 *Note*: A slight decrease was observed in one case. This shows that although Beaver FE generally improves performance, results may vary depending on the model and dataset.
+
+![Benchmark Performance Chart](assets/benchmark_results.png)
 
 ---
 

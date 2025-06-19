@@ -11,7 +11,16 @@ class MissingValuesHandlerParameterSelector:
     DEFAULT_KNN_NEIGHBORS = [5]
 
     def select_best_parameters(
-        self, X, y, model, scoring, direction: str, cv, groups, logger: VerboseLogger
+        self,
+        X,
+        y,
+        model,
+        scoring,
+        direction: str,
+        cv,
+        groups,
+        tol,
+        logger: VerboseLogger,
     ) -> Optional[Dict[str, object]]:
         cat_cols = dtypes.categorical_columns(X)
         num_cols = dtypes.numerical_columns(X)

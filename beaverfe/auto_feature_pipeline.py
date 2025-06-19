@@ -6,6 +6,7 @@ from sklearn.utils import shuffle
 
 import beaverfe.auto_parameters as pc
 from beaverfe.auto_parameters.shared import evaluate_model
+from beaverfe.auto_parameters.shared.utils import is_score_improved
 from beaverfe.transformations import ColumnSelection
 from beaverfe.transformations.utils import dtypes
 from beaverfe.utils import get_transformer
@@ -20,6 +21,7 @@ def auto_feature_pipeline(
     direction: str = "maximize",
     cv: Union[int, Callable] = None,
     groups: Optional[np.ndarray] = None,
+    tol: float = 0.005,
     verbose: bool = True,
     preprocessing: bool = True,
     feature_generation: bool = True,
@@ -56,30 +58,39 @@ def auto_feature_pipeline(
 
     X, y = X.copy(), y.copy()
     X, y = shuffle(X, y, random_state=42)
-    initial_columns = set(X.columns)
-    initial_num_columns = dtypes.numerical_columns(X)
 
+    initial_columns = X.columns.tolist()
+    initial_num_columns = dtypes.numerical_columns(X)
     transformations, tracked_columns = [], []
-    exclude_from_selection, exclude_from_dimred = set(), set()
 
     def apply_wrapper(
         transform_calc, X, y, transformations, tracked_columns, subset=None
     ):
         X_t, new_transforms, new_tracks = execute_transformation(
-            transform_calc, X, y, model, scoring, direction, cv, groups, logger, subset
+            transform_calc,
+            X,
+            y,
+            model,
+            scoring,
+            direction,
+            cv,
+            groups,
+            tol,
+            logger,
+            subset,
         )
         transformations.extend(new_transforms)
         tracked_columns.extend(new_tracks)
         new_columns = set(X_t.columns) - set(X.columns)
+
         return X_t, transformations, tracked_columns, new_columns
 
     # Apply Missing and Outlier handling
     if preprocessing:
         transformer = pc.MissingValuesIndicatorParameterSelector()
-        X, transformations, tracked_columns, new_columns = apply_wrapper(
+        X, transformations, tracked_columns, _ = apply_wrapper(
             transformer, X, y, transformations, tracked_columns
         )
-        exclude_from_dimred.update(new_columns)
 
         transformer = pc.MissingValuesHandlerParameterSelector()
         X, transformations, tracked_columns, _ = apply_wrapper(
@@ -96,32 +107,11 @@ def auto_feature_pipeline(
             subset=initial_num_columns,
         )
 
+    math_columns = set()
+
     # Feature Engineering
     if feature_generation:
         transformer = pc.SplineTransformationParameterSelector()
-        X, transformations, tracked_columns, new_columns = apply_wrapper(
-            transformer,
-            X,
-            y,
-            transformations,
-            tracked_columns,
-            subset=initial_num_columns,
-        )
-        exclude_from_selection.update(new_columns)
-        exclude_from_dimred.update(new_columns)
-
-        transformer = pc.NumericalBinningParameterSelector()
-        X, transformations, tracked_columns, new_columns = apply_wrapper(
-            transformer,
-            X,
-            y,
-            transformations,
-            tracked_columns,
-            subset=initial_num_columns,
-        )
-        exclude_from_dimred.update(new_columns)
-
-        transformer = pc.MathematicalOperationsParameterSelector()
         X, transformations, tracked_columns, _ = apply_wrapper(
             transformer,
             X,
@@ -131,7 +121,30 @@ def auto_feature_pipeline(
             subset=initial_num_columns,
         )
 
+        transformer = pc.NumericalBinningParameterSelector()
+        X, transformations, tracked_columns, _ = apply_wrapper(
+            transformer,
+            X,
+            y,
+            transformations,
+            tracked_columns,
+            subset=initial_num_columns,
+        )
+
+        transformer = pc.MathematicalOperationsParameterSelector()
+        X, transformations, tracked_columns, math_columns = apply_wrapper(
+            transformer,
+            X,
+            y,
+            transformations,
+            tracked_columns,
+            subset=initial_num_columns,
+        )
+
     if normalization:
+        # Columns to normalize: original numerical + generated math columns
+        normalization_columns = list(set(initial_num_columns) | math_columns)
+
         # Distribution Transformations (choose best)
         transformations_1, transformations_2 = [], []
         tracked_columns_1, tracked_columns_2 = [], []
@@ -139,43 +152,69 @@ def auto_feature_pipeline(
         ## Option 1: NonLinear + Normalization + Scaler
         transformer = pc.NonLinearTransformationParameterSelector()
         X_1, transformations_1, tracked_columns_1, _ = apply_wrapper(
-            transformer, X, y, transformations_1, tracked_columns_1
+            transformer,
+            X,
+            y,
+            transformations_1,
+            tracked_columns_1,
+            subset=normalization_columns,
         )
 
         transformer = pc.NormalizationParameterSelector()
         X_1, transformations_1, tracked_columns_1, _ = apply_wrapper(
-            transformer, X_1, y, transformations_1, tracked_columns_1
+            transformer,
+            X_1,
+            y,
+            transformations_1,
+            tracked_columns_1,
+            subset=normalization_columns,
         )
 
         transformer = pc.ScaleTransformationParameterSelector()
         X_1, transformations_1, tracked_columns_1, _ = apply_wrapper(
-            transformer, X_1, y, transformations_1, tracked_columns_1
+            transformer,
+            X_1,
+            y,
+            transformations_1,
+            tracked_columns_1,
+            subset=normalization_columns,
         )
 
         ## Option 2: Quantile Transformation
         transformer = pc.QuantileTransformationParameterSelector()
         X_2, transformations_2, tracked_columns_2, _ = apply_wrapper(
-            transformer, X, y, transformations_2, tracked_columns_2
+            transformer,
+            X,
+            y,
+            transformations_2,
+            tracked_columns_2,
+            subset=normalization_columns,
         )
 
         ## Choose best transformation approach
+        score_base = evaluate_model(X, y, model, scoring, cv, groups)
         score_1 = evaluate_model(X_1, y, model, scoring, cv, groups)
         score_2 = evaluate_model(X_2, y, model, scoring, cv, groups)
 
-        if score_1 > score_2:
-            X = X_1
-            transformations.extend(transformations_1)
-            tracked_columns.extend(tracked_columns_1)
-            logger.task_result(
-                "Selected transformation strategy: Option 1 (NonLinear + Normalization + Scaler)"
-            )
+        if is_score_improved(score_1, score_base, direction, tol) or is_score_improved(
+            score_2, score_base, direction, tol
+        ):
+            if is_score_improved(score_1, score_2, direction):
+                X = X_1
+                transformations.extend(transformations_1)
+                tracked_columns.extend(tracked_columns_1)
+                logger.task_result(
+                    "Selected transformation strategy: Option 1 (NonLinear + Normalization + Scaler)"
+                )
+            else:
+                X = X_2
+                transformations.extend(transformations_2)
+                tracked_columns.extend(tracked_columns_2)
+                logger.task_result(
+                    "Selected transformation strategy: Option 2 (QuantileTransformer)"
+                )
         else:
-            X = X_2
-            transformations.extend(transformations_2)
-            tracked_columns.extend(tracked_columns_2)
-            logger.task_result(
-                "Selected transformation strategy: Option 2 (QuantileTransformer)"
-            )
+            logger.warn("No transformation strategy improved performance.")
 
     if preprocessing:
         # Periodic Features
@@ -190,7 +229,7 @@ def auto_feature_pipeline(
         # Cyclical features
         if datetime_columns:
             transformer = pc.CyclicalFeaturesTransformerParameterSelector()
-            X, transformations, tracked_columns, new_columns = apply_wrapper(
+            X, transformations, tracked_columns, _ = apply_wrapper(
                 transformer,
                 X,
                 y,
@@ -198,23 +237,15 @@ def auto_feature_pipeline(
                 tracked_columns,
                 subset=list(datetime_columns),
             )
-            exclude_from_dimred.update(new_columns)
 
         # Categorical Encoding
         transformer = pc.CategoricalEncodingParameterSelector()
-        X, transformations, tracked_columns, new_columns = apply_wrapper(
+        X, transformations, tracked_columns, _ = apply_wrapper(
             transformer, X, y, transformations, tracked_columns
         )
-        exclude_from_selection.update(new_columns)
-        exclude_from_dimred.update(new_columns)
 
+    # Dimensionality Reduction
     if dimensionality_reduction:
-        # Dimensionality Reduction
-        candidate_columns = dtypes.numerical_columns(X)
-        columns_for_selection = [
-            col for col in candidate_columns if col not in exclude_from_selection
-        ]
-
         transformer = pc.ColumnSelectionParameterSelector()
         X, transformations, tracked_columns, _ = apply_wrapper(
             transformer,
@@ -222,13 +253,7 @@ def auto_feature_pipeline(
             y,
             transformations,
             tracked_columns,
-            subset=columns_for_selection,
         )
-
-        candidate_columns = dtypes.numerical_columns(X)
-        columns_for_dimred = [
-            col for col in candidate_columns if col not in exclude_from_dimred
-        ]
 
         transformer = pc.DimensionalityReductionParameterSelector()
         X, transformations, tracked_columns, _ = apply_wrapper(
@@ -237,7 +262,6 @@ def auto_feature_pipeline(
             y,
             transformations,
             tracked_columns,
-            subset=columns_for_dimred,
         )
 
     # Remove unnecessary tranformations
@@ -261,13 +285,14 @@ def execute_transformation(
     direction,
     cv,
     groups,
+    tol,
     logger,
     subset=None,
 ):
     X_subset = X.loc[:, subset] if subset else X
 
     transformation = calculator.select_best_parameters(
-        X_subset, y, model, scoring, direction, cv, groups, logger
+        X_subset, y, model, scoring, direction, cv, groups, tol, logger
     )
     if not transformation:
         return X, [], []

@@ -11,9 +11,18 @@ class NonLinearTransformationParameterSelector:
     SKEWNESS_THRESHOLD = 0.5
 
     def select_best_parameters(
-        self, X, y, model, scoring, direction: str, cv, groups, logger: VerboseLogger
+        self,
+        X,
+        y,
+        model,
+        scoring,
+        direction: str,
+        cv,
+        groups,
+        tol,
+        logger: VerboseLogger,
     ) -> Optional[Dict[str, Any]]:
-        logger.task_start("Beginning search for optimal non-linear transformations.")
+        logger.task_start("Starting search for optimal non-linear transformations.")
 
         numeric_columns = dtypes.numerical_columns(X)
         total_columns = len(numeric_columns)

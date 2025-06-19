@@ -10,11 +10,20 @@ from beaverfe.utils.verbose import VerboseLogger
 
 class CategoricalEncodingParameterSelector:
     def select_best_parameters(
-        self, X, y, model, scoring, direction: str, cv, groups, logger: VerboseLogger
+        self,
+        X,
+        y,
+        model,
+        scoring,
+        direction: str,
+        cv,
+        groups,
+        tol,
+        logger: VerboseLogger,
     ) -> Optional[Dict[str, Any]]:
-        logger.task_start("Beginning search for optimal categorical encodings.")
+        logger.task_start("Starting search for optimal categorical encodings.")
 
-        candidate_encodings = self._get_candidate_encodings(X)
+        candidate_encodings = self._get_candidate_encodings(X, y)
         total_columns = len(candidate_encodings)
         best_encoding_config = {}
 
@@ -58,7 +67,9 @@ class CategoricalEncodingParameterSelector:
         logger.warn("No suitable categorical encodings were identified.")
         return None
 
-    def _get_candidate_encodings(self, X) -> Dict[str, list]:
+    def _get_candidate_encodings(self, X, y) -> Dict[str, list]:
+        is_binary = y.nunique() == 2
+
         categorical_columns = dtypes.categorical_columns(X)
         column_category_counts = {col: X[col].nunique() for col in categorical_columns}
 
@@ -66,9 +77,13 @@ class CategoricalEncodingParameterSelector:
 
         for column, unique_count in column_category_counts.items():
             if unique_count <= 15:
-                encoding_options[column] = ["dummy", "catboost", "target", "woe"]
+                encoding_options[column] = ["dummy", "catboost", "target"]
+                if is_binary:
+                    encoding_options[column].append("woe")
+
             elif unique_count <= 50:
                 encoding_options[column] = ["catboost", "binary", "target", "loo"]
+
             else:
                 encoding_options[column] = ["catboost", "hashing", "target"]
 
