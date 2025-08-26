@@ -107,20 +107,32 @@ def auto_feature_pipeline(
             subset=initial_num_columns,
         )
 
+    # Periodic Features
+    datetime_columns = set()
+
+    if preprocessing:
+        transformer = pc.DateTimeTransformerParameterSelector()
+        X, transformations, tracked_columns, datetime_columns = apply_wrapper(
+            transformer, X, y, transformations, tracked_columns
+        )
+
+    # Cyclical features
+    if feature_generation:
+        if datetime_columns:
+            transformer = pc.CyclicalFeaturesTransformerParameterSelector()
+            X, transformations, tracked_columns, _ = apply_wrapper(
+                transformer,
+                X,
+                y,
+                transformations,
+                tracked_columns,
+                subset=list(datetime_columns),
+            )
+
     math_columns = set()
 
     # Feature Engineering
     if feature_generation:
-        transformer = pc.SplineTransformationParameterSelector()
-        X, transformations, tracked_columns, _ = apply_wrapper(
-            transformer,
-            X,
-            y,
-            transformations,
-            tracked_columns,
-            subset=initial_num_columns,
-        )
-
         transformer = pc.NumericalBinningParameterSelector()
         X, transformations, tracked_columns, _ = apply_wrapper(
             transformer,
@@ -139,6 +151,23 @@ def auto_feature_pipeline(
             transformations,
             tracked_columns,
             subset=initial_num_columns,
+        )
+
+        transformer = pc.SplineTransformationParameterSelector()
+        X, transformations, tracked_columns, _ = apply_wrapper(
+            transformer,
+            X,
+            y,
+            transformations,
+            tracked_columns,
+            subset=initial_num_columns,
+        )
+
+    # Categorical Encoding
+    if feature_generation:
+        transformer = pc.CategoricalEncodingParameterSelector()
+        X, transformations, tracked_columns, _ = apply_wrapper(
+            transformer, X, y, transformations, tracked_columns
         )
 
     if normalization:
@@ -215,34 +244,6 @@ def auto_feature_pipeline(
                 )
         else:
             logger.warn("No transformation strategy improved performance.")
-
-    if preprocessing:
-        # Periodic Features
-        transformer = pc.DateTimeTransformerParameterSelector()
-        X, transformations, tracked_columns, datetime_columns = apply_wrapper(
-            transformer, X, y, transformations, tracked_columns
-        )
-    else:
-        datetime_columns = []
-
-    if feature_generation:
-        # Cyclical features
-        if datetime_columns:
-            transformer = pc.CyclicalFeaturesTransformerParameterSelector()
-            X, transformations, tracked_columns, _ = apply_wrapper(
-                transformer,
-                X,
-                y,
-                transformations,
-                tracked_columns,
-                subset=list(datetime_columns),
-            )
-
-        # Categorical Encoding
-        transformer = pc.CategoricalEncodingParameterSelector()
-        X, transformations, tracked_columns, _ = apply_wrapper(
-            transformer, X, y, transformations, tracked_columns
-        )
 
     # Dimensionality Reduction
     if dimensionality_reduction:
