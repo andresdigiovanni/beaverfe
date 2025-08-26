@@ -35,9 +35,9 @@ class ColumnSelectionParameterSelector:
         X_filtered = X[columns]
 
         if hasattr(model, "feature_importances_") or hasattr(model, "coef_"):
-            rfecv = RFECV(estimator=model, scoring=scoring, cv=cv, step=0.1)
+            rfecv = RFECV(estimator=model, scoring=scoring, cv=cv, step=0.2)
         else:
-            rfecv = PermutationRFECV(estimator=model, scoring=scoring, cv=cv, step=0.1)
+            rfecv = PermutationRFECV(estimator=model, scoring=scoring, cv=cv, step=0.2)
 
         rfecv.fit(X_filtered, y, groups=groups)
         selected_features = list(rfecv.get_feature_names_out())
