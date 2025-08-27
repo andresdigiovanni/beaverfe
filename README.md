@@ -159,19 +159,17 @@ Beaver FE was evaluated on several datasets and models to assess its impact on m
 |---------|----------------------|----------|----------|-------------|
 | **adult** |                      |          |          |             |
 |          | LDA                  | 0.848    | 0.905    | +6.72%      |
-|          | LogisticRegression   | 0.822    | 0.900    | +9.49%      |
+|          | LogisticRegression   | 0.822    | 0.903    | +9.85%      |
 |          | XGBoost              | 0.921    | 0.923    | +0.22%      |
 | **bank**  |                      |          |          |             |
 |          | LDA                  | 0.874    | 0.911    | +4.23%      |
-|          | LogisticRegression   | 0.854    | 0.909    | +6.44%      |
-|          | XGBoost              | 0.927    | 0.929    | +0.22%      |
+|          | LogisticRegression   | 0.854    | 0.904    | +5.85%      |
+|          | XGBoost              | 0.927    | 0.932    | +0.54%      |
 | **credit**|                      |          |          |             |
-|          | LDA                  | 0.717    | 0.761    | +6.14%      |
-|          | LogisticRegression   | 0.696    | 0.747    | +7.33%      |
-|          | XGBoost              | 0.760    | 0.757    | -0.39%      |
+|          | LDA                  | 0.717    | 0.762    | +6.28%      |
+|          | LogisticRegression   | 0.696    | 0.763    | +9.63%      |
+|          | XGBoost              | 0.760    | 0.761    | +0.13%      |
 
-
-> 🚨 *Note*: A slight decrease was observed in one case. This shows that although Beaver FE generally improves performance, results may vary depending on the model and dataset.
 
 ![Benchmark Performance Chart](assets/benchmark_results.png)
 
