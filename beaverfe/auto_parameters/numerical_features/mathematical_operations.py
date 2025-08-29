@@ -103,7 +103,6 @@ class MathematicalOperationsParameterSelector:
             groups,
             selected_ops,
             transformations_map,
-            logger,
         )
 
         if not final_ops:
@@ -171,7 +170,7 @@ class MathematicalOperationsParameterSelector:
             return list(X_block.columns)
 
     def _select_final_columns(
-        self, x, y, model, scoring, cv, groups, operations, transformations_map, logger
+        self, x, y, model, scoring, cv, groups, operations, transformations_map
     ):
         transformer = MathematicalOperations(operations)
         x_transformed = transformer.fit_transform(x, y)

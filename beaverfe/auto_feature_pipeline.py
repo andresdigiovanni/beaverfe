@@ -118,20 +118,16 @@ def auto_feature_pipeline(
 
     # Cyclical features
     if feature_generation:
-        if datetime_columns:
-            transformer = pc.CyclicalFeaturesTransformerParameterSelector()
-            X, transformations, tracked_columns, _ = apply_wrapper(
-                transformer,
-                X,
-                y,
-                transformations,
-                tracked_columns,
-                subset=list(datetime_columns),
-            )
+        transformer = pc.CyclicalFeaturesTransformerParameterSelector()
+        subset = list(set(initial_num_columns) | datetime_columns)
 
-    math_columns = set()
+        X, transformations, tracked_columns, _ = apply_wrapper(
+            transformer, X, y, transformations, tracked_columns, subset=subset
+        )
 
     # Feature Engineering
+    math_columns = set()
+
     if feature_generation:
         transformer = pc.NumericalBinningParameterSelector()
         X, transformations, tracked_columns, _ = apply_wrapper(
@@ -172,7 +168,7 @@ def auto_feature_pipeline(
 
     if normalization:
         # Columns to normalize: original numerical + generated math columns
-        normalization_columns = list(set(initial_num_columns) | math_columns)
+        subset = list(set(initial_num_columns) | math_columns)
 
         # Distribution Transformations (choose best)
         transformations_1, transformations_2 = [], []
@@ -186,7 +182,7 @@ def auto_feature_pipeline(
             y,
             transformations_1,
             tracked_columns_1,
-            subset=normalization_columns,
+            subset=subset,
         )
 
         transformer = pc.NormalizationParameterSelector()
@@ -196,7 +192,7 @@ def auto_feature_pipeline(
             y,
             transformations_1,
             tracked_columns_1,
-            subset=normalization_columns,
+            subset=subset,
         )
 
         transformer = pc.ScaleTransformationParameterSelector()
@@ -206,7 +202,7 @@ def auto_feature_pipeline(
             y,
             transformations_1,
             tracked_columns_1,
-            subset=normalization_columns,
+            subset=subset,
         )
 
         ## Option 2: Quantile Transformation
@@ -217,7 +213,7 @@ def auto_feature_pipeline(
             y,
             transformations_2,
             tracked_columns_2,
-            subset=normalization_columns,
+            subset=subset,
         )
 
         ## Choose best transformation approach
