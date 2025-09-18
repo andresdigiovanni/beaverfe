@@ -73,7 +73,7 @@ class MathematicalOperationsParameterSelector:
                 f"Round {round_idx}: {len(candidate_features)} features selected"
             )
 
-            # condición de parada
+            # stop condition
             if len(candidate_features) <= top_k:
                 break
             if set(candidate_features) == prev_selected:
@@ -116,7 +116,7 @@ class MathematicalOperationsParameterSelector:
             "params": transformer.get_params(),
         }
 
-    # --- Métodos auxiliares (idénticos a los anteriores) ---
+    # --- Auxiliar methods ---
     def _generate_operations(self, x, columns):
         transformations = {}
         operations = []

@@ -22,18 +22,18 @@ class DropDatetimeColumns(BaseEstimator, TransformerMixin):
 def build_pipeline(model, transformer=None):
     steps = []
 
-    # Step 0: Drop datetime columns
-    steps.append(("drop_datetime", DropDatetimeColumns()))
-
     # Step 1: Optional custom transformer
     if transformer:
         steps.append(("transformer", transformer))
 
-    # Step 2: Define imputers
+    # Step 2: Drop datetime columns
+    steps.append(("drop_datetime", DropDatetimeColumns()))
+
+    # Step 3: Define imputers
     numeric_imputer = SimpleImputer(strategy="constant", fill_value=0)
     categorical_imputer = SimpleImputer(strategy="constant", fill_value="missing")
 
-    # Step 3: Categorical pipeline: impute + encode
+    # Step 4: Categorical pipeline: impute + encode
     categorical_pipeline = Pipeline(
         [
             ("imputer", categorical_imputer),
@@ -44,7 +44,7 @@ def build_pipeline(model, transformer=None):
         ]
     )
 
-    # Step 4: Combine preprocessing steps
+    # Step 5: Combine preprocessing steps
     preprocessor = ColumnTransformer(
         transformers=[
             ("num", numeric_imputer, make_column_selector(dtype_include=["number"])),
@@ -57,7 +57,7 @@ def build_pipeline(model, transformer=None):
         remainder="drop",
     )
 
-    # Step 5: Assemble full pipeline
+    # Step 6: Assemble full pipeline
     steps.append(("preprocessing", preprocessor))
     steps.append(("model", model))
 

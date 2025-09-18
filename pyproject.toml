@@ -1,6 +1,6 @@
 [project]
 name = "beaverfe"
-version = "0.3.0"
+version = "0.4.0"
 description = "A Versatile Toolkit for Automated Feature Engineering in Machine Learning"
 authors = [{ name = "Andres Di Giovanni", email = "andresdigiovanni@gmail.com" }]
 readme = "README.md"

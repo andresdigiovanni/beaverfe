@@ -104,9 +104,8 @@ class OutliersParameterSelector:
                 continue
 
             kwargs = self._build_kwargs(column, action, method, param)
-            score = evaluate_model(
-                X, y, model, scoring, cv, groups, OutliersHandler(**kwargs)
-            )
+            transformation = OutliersHandler(**kwargs)
+            score = evaluate_model(X, y, model, scoring, cv, groups, transformation)
             logger.progress(
                 f"   ↪ Tried {self._kwargs_to_string(kwargs, column)} → Score: {score:.4f}"
             )

@@ -175,6 +175,51 @@ Beaver FE was evaluated on several datasets and models to assess its impact on m
 
 ---
 
+<a id="transformation-evaluation"></a>
+## 🔎 Transformation Evaluation
+
+To better understand the impact of each transformation applied with **Beaver FE**, you can use the function `evaluate_transformations`.  
+This utility evaluates the model performance after each incremental transformation and generates a plot showing the **score evolution** step by step.
+
+### Example
+
+```python
+from beaverfe.evaluation import evaluate_transformations
+
+scores = evaluate_transformations(
+    transformations,     # list of Beaver transformations
+    X,                   # input features
+    y,                   # labels
+    model,               # estimator to evaluate
+    scoring="accuracy",  # evaluation metric
+    cv=5,                # cross-validation folds
+    plot_file="performance_evolution.png"
+)
+
+print(scores)
+```
+
+### Output
+
+* **Scores list**:
+  A list of dictionaries with the score after each step, starting with the baseline (no transformations):
+
+```python
+[
+    {"name": "Baseline", "score": 0.822},
+    {"name": "StandardScaler", "score": 0.853},
+    {"name": "PCA", "score": 0.861},
+]
+```
+
+* **Evolution plot**:
+  The function also generates a line chart saved to `performance_evolution.png`.
+  Each transformation is **enumerated** to avoid duplicate names, making it clear how performance evolves:
+
+![Performance Evolution](assets/performance_evolution.png)
+
+---
+
 <a id="core-api"></a>
 ## 🧩 Core API
 
