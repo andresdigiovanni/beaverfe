@@ -17,7 +17,7 @@
   - [Automated Feature Engineering](#automated-feature-engineering)
   - [Manual Transformations](#manual-transformations)
   - [Saving and Loading Pipelines](#saving-and-loading-pipelines)
-- [Benchmark Results](#benchmark-results) 
+- [Benchmark Results](#benchmark-results)
 - [Core API](#core-api)
 - [Available Transformations](#available-transformations)
   - [Missing Values & Outliers](#missing-values-and-outliers)
@@ -178,7 +178,7 @@ Beaver FE was evaluated on several datasets and models to assess its impact on m
 <a id="transformation-evaluation"></a>
 ## 🔎 Transformation Evaluation
 
-To better understand the impact of each transformation applied with **Beaver FE**, you can use the function `evaluate_transformations`.  
+To better understand the impact of each transformation applied with **Beaver FE**, you can use the function `evaluate_transformations`.
 This utility evaluates the model performance after each incremental transformation and generates a plot showing the **score evolution** step by step.
 
 ### Example
@@ -303,23 +303,23 @@ from beaverfe import BeaverPipeline
 
 #### **Public Methods:**
 
-- `fit(X, y=None)`  
+- `fit(X, y=None)`
     Fits each transformation in the pipeline to the dataset.
     - **Returns:** `self`
 
-- `transform(X, y=None)`  
+- `transform(X, y=None)`
     Applies each fitted transformation in sequence.
     - **Returns:** Transformed feature matrix (`np.ndarray` or `pd.DataFrame`)
 
-- `fit_transform(X, y=None)`  
+- `fit_transform(X, y=None)`
     Combines `fit` and `transform` for each transformation.
     - **Returns:** Transformed feature matrix.
 
-- `get_params(deep=True)`  
+- `get_params(deep=True)`
     Retrieves the parameters of the pipeline (mainly the transformations).
     - **Returns:** Dictionary of parameters.
 
-- `set_params(**params)`  
+- `set_params(**params)`
     Sets or updates the pipeline parameters.
     - **Returns:** `self`
 
@@ -367,7 +367,7 @@ MissingValuesHandler(
         'sepal width (cm)': 'knn',
         'petal length (cm)': 'mean',
         'petal width (cm)': 'most_frequent',
-        
+
     },
     n_neighbors= {
         'sepal width (cm)': 5,
@@ -397,7 +397,7 @@ OutliersHandler(
     },
     thresholds={
         'sepal length (cm)': 1.5,
-        'sepal width (cm)': 2.5,    
+        'sepal width (cm)': 2.5,
     },
     lof_params={
         'petal length (cm)': {

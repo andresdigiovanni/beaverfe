@@ -1,21 +1,85 @@
+# Pre-commit hooks configuration
+# See https://pre-commit.com for more information
+
 repos:
-  # Format with Ruff
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.7
+  # General hooks (uses project venv)
+  - repo: local
+    hooks:
+      - id: trailing-whitespace
+        name: trim trailing whitespace
+        entry: uv run trailing-whitespace-fixer
+        language: system
+        types: [text]
+      - id: end-of-file-fixer
+        name: fix end of files
+        entry: uv run end-of-file-fixer
+        language: system
+        types: [text]
+      - id: check-yaml
+        name: check yaml
+        entry: uv run check-yaml
+        language: system
+        types: [yaml]
+      - id: check-added-large-files
+        name: check for added large files
+        entry: uv run check-added-large-files
+        language: system
+      - id: check-json
+        name: check json
+        entry: uv run check-json
+        language: system
+        types: [json]
+      - id: check-toml
+        name: check toml
+        entry: uv run check-toml
+        language: system
+        types: [toml]
+      - id: check-merge-conflict
+        name: check for merge conflicts
+        entry: uv run check-merge-conflict
+        language: system
+        types: [text]
+      - id: debug-statement-hook
+        name: debug statements (python)
+        entry: uv run debug-statement-hook
+        language: system
+        types: [python]
+      - id: mixed-line-ending
+        name: mixed line ending
+        entry: uv run mixed-line-ending
+        language: system
+        types: [text]
+
+  # Ruff - Fast Python linter and formatter (uses project venv)
+  - repo: local
     hooks:
       - id: ruff
-        args: [ --fix ]
+        name: ruff (lint)
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
       - id: ruff-format
+        name: ruff (format)
+        entry: uv run ruff format
+        language: system
+        types: [python]
 
-  # Automatically sorts and formats Python imports
-  - repo: https://github.com/pycqa/isort
-    rev: 6.0.0
+  # MyPy - Static type checker (uses project venv, no isolated env)
+  - repo: local
     hooks:
-      - id: isort
-        args: ["--profile", "black"]
+      - id: mypy
+        name: mypy
+        entry: uv run mypy
+        language: system
+        types: [python]
+        args: [src/]
+        pass_filenames: false
 
-  # Detect hardcoded secrets
-  - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.24.0
+  # Commitizen - Check commit message format (uses project venv)
+  - repo: local
     hooks:
-      - id: gitleaks
+      - id: commitizen
+        name: commitizen
+        entry: uv run cz check --commit-msg-file
+        language: system
+        stages: [commit-msg]
