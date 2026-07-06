@@ -16,18 +16,6 @@ class MissingValuesHandler(BaseEstimator, TransformerMixin):
         self._statistics = {}
         self._imputers = {}
 
-    def get_params(self, deep=True):
-        return {
-            "transformation_options": self.transformation_options,
-            "n_neighbors": self.n_neighbors,
-        }
-
-    def set_params(self, **params):
-        for key, value in params.items():
-            setattr(self, key, value)
-
-        return self
-
     def fit(self, X, y=None):
         self._statistics = {}
         self._imputers = {}

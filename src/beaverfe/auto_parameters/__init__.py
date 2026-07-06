@@ -1,25 +1,26 @@
-from .categorical_features import CategoricalEncodingParameterSelector
+from .categorical_features import CategoricalEncodingSpaceGenerator
 from .distribution_n_scale import (
-    NonLinearTransformationParameterSelector,
-    NormalizationParameterSelector,
-    QuantileTransformationParameterSelector,
-    ScaleTransformationParameterSelector,
+    NonLinearTransformationSpaceGenerator,
+    NormalizationSpaceGenerator,
+    NormalizerSpaceGenerator,
+    QuantileTransformationSpaceGenerator,
+    ScaleTransformationSpaceGenerator,
 )
 from .features_reduction import (
-    ColumnSelectionParameterSelector,
-    DimensionalityReductionParameterSelector,
+    ColumnSelectionSpaceGenerator,
+    DimensionalityReductionSpaceGenerator,
 )
 from .missing_n_outliers import (
-    MissingValuesHandlerParameterSelector,
-    MissingValuesIndicatorParameterSelector,
-    OutliersParameterSelector,
+    MissingValuesHandlerSpaceGenerator,
+    MissingValuesIndicatorSpaceGenerator,
+    OutliersSpaceGenerator,
 )
 from .numerical_features import (
-    MathematicalOperationsParameterSelector,
-    NumericalBinningParameterSelector,
-    SplineTransformationParameterSelector,
+    MathematicalOperationsSpaceGenerator,
+    NumericalBinningSpaceGenerator,
+    SplineTransformationSpaceGenerator,
 )
 from .periodic_features import (
-    CyclicalFeaturesTransformerParameterSelector,
-    DateTimeTransformerParameterSelector,
+    CyclicalFeaturesTransformerSpaceGenerator,
+    DateTimeTransformerSpaceGenerator,
 )

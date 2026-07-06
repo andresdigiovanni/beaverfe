@@ -11,15 +11,6 @@ class MissingValuesIndicator(BaseEstimator, TransformerMixin):
         self.tracked_columns = {}
         self._indicator = None
 
-    def get_params(self, deep=True):
-        return {"features": self.features}
-
-    def set_params(self, **params):
-        for key, value in params.items():
-            setattr(self, key, value)
-
-        return self
-
     def fit(self, X, y=None):
         self._indicator = MissingIndicator(features="all", sparse=False)
         self._indicator.fit(X[self.features])

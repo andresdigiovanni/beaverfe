@@ -1,1 +1,1 @@
-from .evaluate_model import evaluate_model
+from .evaluate_model import build_pipeline, evaluate_model

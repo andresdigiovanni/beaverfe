@@ -12,37 +12,31 @@
 **Beaver FE** is a Python library that streamlines feature engineering for machine learning. It provides robust tools for preprocessing tasks such as scaling, normalization, feature creation (e.g., binning, mathematical operations), and encoding. It improves data quality and boosts model performance with minimal manual effort.
 
 ## 📌 Table of Contents
-- [Getting Started](#getting-started)
-- [Usage Examples](#usage-examples)
-  - [Automated Feature Engineering](#automated-feature-engineering)
-  - [Manual Transformations](#manual-transformations)
-  - [Saving and Loading Pipelines](#saving-and-loading-pipelines)
-- [Benchmark Results](#benchmark-results)
-- [Core API](#core-api)
-- [Available Transformations](#available-transformations)
-  - [Missing Values & Outliers](#missing-values-and-outliers)
-    - [Missing Values Indicator](#missing-values-indicator)
-    - [Missing Values Handler](#missing-values-handler)
-    - [Handle Outliers](#handle-outliers)
-  - [Data Distribution & Scaling](#data-distribution-and-scaling)
-    - [Non-Linear Transformation](#non-linear-transformation)
-    - [Quantile Transformations](#quantile-transformations)
-    - [Scale Transformations](#scale-transformations)
-    - [Normalization](#normalization)
-  - [Numerical Features](#numerical-features)
-    - [Spline Transformations](#spline-transformations)
-    - [Numerical Binning](#numerical-binning)
-    - [Mathematical Operations](#mathematical-operations)
-  - [Categorical Features](#categorical-features)
-    - [Categorical Encoding](#categorical-encoding)
-  - [Periodic Features](#periodic-features)
-    - [Date Time Transforms](#date-time-transforms)
-    - [Cyclical Features Transforms](#cyclical-features-transforms)
-  - [Features Reduction](#features-reduction)
-    - [Column Selection](#column-selection)
-    - [Dimensionality Reduction](#dimensionality-reduction)
-- [Contributing](#contributing)
-- [License](#license)
+- [**Beaver FE**](#beaver-fe)
+  - [📌 Table of Contents](#-table-of-contents)
+  - [🚀 Getting Started](#-getting-started)
+  - [📖 Usage Examples](#-usage-examples)
+    - [🤖 Automated Feature Engineering](#-automated-feature-engineering)
+    - [🔧 Manual Transformations](#-manual-transformations)
+    - [💾 Saving and Loading Transformations](#-saving-and-loading-transformations)
+  - [📊 Benchmark Results](#-benchmark-results)
+  - [🔎 Transformation Evaluation](#-transformation-evaluation)
+    - [Example](#example)
+    - [Output](#output)
+  - [🧩 Core API](#-core-api)
+    - [**auto\_feature\_pipeline**](#auto_feature_pipeline)
+      - [**Parameters:**](#parameters)
+      - [**Execution Order:**](#execution-order)
+      - [**Returns:**](#returns)
+    - [**BeaverPipeline**](#beaverpipeline)
+      - [**Constructor Parameters:**](#constructor-parameters)
+      - [**Public Methods:**](#public-methods)
+    - [**evaluate\_transformations**](#evaluate_transformations)
+      - [**Parameters:**](#parameters-1)
+      - [**Returns:**](#returns-1)
+  - [🔍 Available Transformations](#-available-transformations)
+  - [🛠️ Contributing](#️-contributing)
+  - [📄 License](#-license)
 
 
 <a id="getting-started"></a>
@@ -184,7 +178,7 @@ This utility evaluates the model performance after each incremental transformati
 ### Example
 
 ```python
-from beaverfe.evaluation import evaluate_transformations
+from beaverfe import evaluate_transformations
 
 scores = evaluate_transformations(
     transformations,     # list of Beaver transformations
@@ -193,7 +187,9 @@ scores = evaluate_transformations(
     model,               # estimator to evaluate
     scoring="accuracy",  # evaluation metric
     cv=5,                # cross-validation folds
-    plot_file="performance_evolution.png"
+    groups=None,         # optional group labels for grouped CV
+    plot_file="performance_evolution.png",
+    max_steps=None,      # limit evaluation to first N transformations
 )
 
 print(scores)
@@ -206,9 +202,17 @@ print(scores)
 
 ```python
 [
-    {"name": "Baseline", "score": 0.822},
-    {"name": "StandardScaler", "score": 0.853},
-    {"name": "PCA", "score": 0.861},
+    {"name": "Baseline", "score": 0.663}
+    {"name": "OutliersHandler", "score": 0.658}
+    {"name": "MathematicalOperations", "score": 0.658}
+    {"name": "SplineTransformation", "score": 0.658}
+    {"name": "NumericalBinning", "score": 0.652}
+    {"name": "NonLinearTransformation", "score": 0.663}
+    {"name": "Normalization", "score": 0.674}
+    {"name": "ScaleTransformation", "score": 0.658}
+    {"name": "QuantileTransformation", "score": 0.922}
+    {"name": "DimensionalityReduction", "score": 0.955}
+    {"name": "ColumnSelection", "score": 0.955}
 ]
 ```
 
@@ -223,9 +227,10 @@ print(scores)
 <a id="core-api"></a>
 ## 🧩 Core API
 
+<a id="auto_feature_pipeline"></a>
 ### **auto_feature_pipeline**
 
-Automatically finds and applies optimal transformations to improve model performance.
+Automatically finds and applies optimal transformations to improve model performance using Bayesian optimisation (Optuna).
 
 ```python
 from beaverfe import auto_feature_pipeline
@@ -233,475 +238,109 @@ from beaverfe import auto_feature_pipeline
 
 #### **Parameters:**
 
-- `X` (`np.ndarray`): Feature matrix.
+- `X` (`pd.DataFrame`): Feature matrix.
 - `y` (`np.ndarray`): Target variable.
-- `model`: A machine learning model implementing a `fit` method.
+- `model`: A scikit-learn-compatible estimator implementing a `fit` method.
 - `scoring` (`str`): Evaluation metric (e.g., `"accuracy"`, `"f1"`, `"roc_auc"`).
 - `direction` (`str`, optional): Optimization direction: `"maximize"` or `"minimize"`. Default is `"maximize"`.
 - `cv` (`int` or callable, optional): Cross-validation strategy (e.g., number of folds or a custom splitter). Default is `None`.
-- `groups` (`np.ndarray`, optional): Group labels for cross-validation. Useful for grouped CV.
+- `groups` (`np.ndarray`, optional): Group labels for cross-validation. Useful for grouped CV. Default is `None`.
+- `timeout` (`int` or `None`, optional): Time budget in seconds for the Bayesian optimisation search. Default is `600`. Set to `None` to disable the time limit.
+- `n_trials` (`int` or `None`, optional): Maximum number of Optuna trials. Default is `100`. Set to `None` to disable the trial limit.
 - `verbose` (`bool`, optional): Whether to display progress logs. Default is `True`.
-
-#### **Transformation Flags:**
-
-Each step of the pipeline can be selectively enabled or disabled.
-
-* `preprocessing` (`bool`, default=`True`):
-  Applies initial cleaning steps, including:
-
-  * Missing value indicators and imputation
-  * Outlier detection and handling
-  * Extraction of datetime features
-
-* `feature_generation` (`bool`, default=`True`):
-  Applies feature creation techniques such as:
-
-  * Spline transformations
-  * Binning of numeric features
-  * Arithmetic operations
-  * Categorical encodings
-  * Cyclical date transformations
-
-* `normalization` (`bool`, default=`True`):
-  Transforms feature distributions using:
-
-  * Non-linear transformations
-  * Quantile transformations
-  * Normalization/scaling
-
-* `dimensionality_reduction` (`bool`, default=`True`):
-  Reduces feature space through:
-
-  * Feature selection (based on performance)
-  * Projection-based dimensionality reduction (e.g., PCA)
 
 #### **Execution Order:**
 
-Transformations are applied in the following order:
+Transformations are applied in the following canonical order:
 
-1. Preprocessing (missing values, outliers, datetime)
-2. Feature Generation (splines, binning, math ops, encodings)
-3. Normalization (non-linear transforms, quantiles, scaling)
-4. Dimensionality Reduction (column selection, PCA)
+1. Datetime feature extraction
+2. Missing value indicators
+3. Missing value imputation
+4. Cyclical feature expansion
+5. Outlier handling
+6. Mathematical operations
+7. Spline transformations
+8. Numerical binning
+9. Categorical encoding
+10. Normalisation (exclusive per-column choice: non-linear / scaling / quantile)
+11. Dimensionality reduction
 
 #### **Returns:**
 
-* `List[dict]`: A list of transformation configurations that can be passed to `BeaverPipeline`.
+* `list[dict]`: A list of transformation configurations (each with `"name"` and `"params"` keys) that can be passed directly to `BeaverPipeline`.
 
 ---
 
+<a id="beaverpipeline"></a>
 ### **BeaverPipeline**
 
-A wrapper to apply a sequence of transformations.
+A scikit-learn compatible pipeline that applies a sequence of transformations.
 
 ```python
 from beaverfe import BeaverPipeline
 ```
 
 #### **Constructor Parameters:**
-- `transformations` (`list`, optional): List of transformation objects or dictionaries.
+- `transformations` (`list[dict]`, optional): List of transformation dictionaries (each with `"name"` and `"params"` keys), or a list of initialised transformer objects. Default is `None`.
+- `order` (`list[PipelineBlock]`, optional): Custom execution order for the pipeline blocks. When provided, transformation dicts are sorted by this order before being applied. Defaults to `None` (preserves input order). Use `CANONICAL_ORDER` from `beaverfe.pipeline_blocks` for the recommended production order.
 
 #### **Public Methods:**
 
 - `fit(X, y=None)`
-    Fits each transformation in the pipeline to the dataset.
+    Fits each transformation in the pipeline to the dataset sequentially, passing the transformed output of each step as input to the next.
     - **Returns:** `self`
 
 - `transform(X, y=None)`
     Applies each fitted transformation in sequence.
-    - **Returns:** Transformed feature matrix (`np.ndarray` or `pd.DataFrame`)
+    - **Returns:** Transformed feature matrix (`pd.DataFrame`)
 
 - `fit_transform(X, y=None)`
     Combines `fit` and `transform` for each transformation.
     - **Returns:** Transformed feature matrix.
 
 - `get_params(deep=True)`
-    Retrieves the parameters of the pipeline (mainly the transformations).
+    Retrieves the pipeline parameters (inherited from `sklearn.BaseEstimator`).
     - **Returns:** Dictionary of parameters.
 
 - `set_params(**params)`
-    Sets or updates the pipeline parameters.
+    Sets or updates the pipeline parameters (inherited from `sklearn.BaseEstimator`).
     - **Returns:** `self`
+
+---
+
+<a id="evaluate_transformations"></a>
+### **evaluate_transformations**
+
+Evaluates a model by incrementally applying transformations and plots the score evolution.
+
+```python
+from beaverfe import evaluate_transformations
+```
+
+#### **Parameters:**
+
+- `transformations` (`list[dict]`): List of transformations in Beaver format.
+- `X` (`pd.DataFrame`): Feature matrix.
+- `y` (`np.ndarray`): Labels.
+- `model`: Scikit-learn-compatible estimator.
+- `scoring` (`str`): Evaluation metric (e.g., `"accuracy"`, `"roc_auc"`).
+- `cv` (`int` or callable, optional): Cross-validation strategy. Default is `None`.
+- `groups` (`np.ndarray`, optional): Group labels for cross-validation. Default is `None`.
+- `plot_file` (`str` or `None`, optional): Path where the score evolution chart is saved. Default is `"performance_evolution.png"`. Set to `None` to skip plotting.
+- `max_steps` (`int` or `None`, optional): Limit evaluation to the first N transformations. Useful for large recipes or big datasets. Default is `None` (evaluate all steps).
+
+#### **Returns:**
+
+* `list[dict]`: A list of `{"name": str, "score": float}` dicts, one per step starting from the baseline.
+
+> **Note:** This function runs one full cross-validation per step, so for T transformations with cv=5 it requires 5T + 5 model fits. Use `max_steps` to control evaluation cost.
 
 ---
 
 <a id="available-transformations"></a>
 ## 🔍 Available Transformations
 
-Grouped by feature type or transformation category:
-
-<a id="missing-values-and-outliers"></a>
-### 📌 Missing Values & Outliers
-
-#### **Missing Values Indicator**
-
-Adds binary flags for missing values.
-
-- Parameters:
-    - `features`: List of column names to check for missing values. If None, all columns are considered.
-
-```python
-from beaverfe.transformations import MissingValuesIndicator
-
-MissingValuesIndicator(
-    features=[
-        'sepal width (cm)',
-        'petal length (cm)',
-    ]
-)
-```
-
-#### **Missing Values Handler**
-
-Fills missing values.
-
-- Parameters:
-    - `transformation_options`: Dictionary that specifies the handling strategy for each column. Options: `fill_0`, `mean`, `median`, `most_frequent`, `knn`.
-    - `n_neighbors`: Number of neighbors for K-Nearest Neighbors imputation (used with `knn`).
-
-```python
-from beaverfe.transformations import MissingValuesHandler
-
-MissingValuesHandler(
-    transformation_options={
-        'sepal width (cm)': 'knn',
-        'petal length (cm)': 'mean',
-        'petal width (cm)': 'most_frequent',
-
-    },
-    n_neighbors= {
-        'sepal width (cm)': 5,
-    }
-)
-```
-
-#### **Handle Outliers**
-
-Detects and mitigates outliers using methods like `iqr`, `zscore`, `lof`, or `iforest`.
-
-- Parameters:
-    - `transformation_options`: Dictionary specifying the handling strategy. The strategy is a tuple where the first element is the action (`cap` or `median`) and the second is the method (`iqr`, `zscore`, `lof`, `iforest`).
-    - `thresholds`: Dictionary with thresholds for `iqr` and `zscore` methods.
-    - `lof_params`: Dictionary specifying parameters for the LOF method.
-    - `iforest_params`: Dictionary specifying parameters for Isolation Forest.
-
-```python
-from beaverfe.transformations import OutliersHandler
-
-OutliersHandler(
-    transformation_options={
-        'sepal length (cm)': ('median', 'iqr'),
-        'sepal width (cm)': ('cap', 'zscore'),
-        'petal length (cm)': ('median', 'lof'),
-        'petal width (cm)': ('median', 'iforest'),
-    },
-    thresholds={
-        'sepal length (cm)': 1.5,
-        'sepal width (cm)': 2.5,
-    },
-    lof_params={
-        'petal length (cm)': {
-            'n_neighbors': 20,
-        }
-    },
-    iforest_params={
-        'petal width (cm)': {
-            'contamination': 0.1,
-        }
-    }
-)
-```
-
-<a id="data-distribution-and-scaling"></a>
-### 📌 Data Distribution & Scaling
-
-#### **Non-Linear Transformation**
-
-Applies logarithmic, exponential, or Yeo-Johnson transformations.
-
-- Parameters:
-    - `transformation_options`: A dictionary specifying the transformation to be applied for each column. Options include: `log`, `exponential`, and `yeo_johnson`.
-
-```python
-from beaverfe.transformations import NonLinearTransformation
-
-NonLinearTransformation(
-    transformation_options={
-        "sepal length (cm)": "log",
-        "sepal width (cm)": "exponential",
-        "petal length (cm)": "yeo_johnson",
-    }
-)
-```
-
-#### **Quantile Transformations**
-
-Transforms data to follow a normal or uniform distribution.
-
-- Parameters:
-    - `transformation_options`: Dictionary specifying the transformation type. Options: `uniform`, `normal`.
-
-```python
-from beaverfe.transformations import QuantileTransformation
-
-QuantileTransformation(
-    transformation_options={
-        'sepal length (cm)': 'uniform',
-        'sepal width (cm)': 'normal',
-    }
-)
-```
-
-#### **Scale Transformations**
-
-Scales numerical data using different scaling methods.
-
-- Parameters:
-    - `transformation_options`: Dictionary specifying the scaling method for each column. Options: `min_max`, `standard`, `robust`, `max_abs`.
-    -  `quantile_range`: Dictionary specifying the quantile ranges for robust scaling.
-
-```python
-from beaverfe.transformations import ScaleTransformation
-
-ScaleTransformation(
-    transformation_options={
-        'sepal length (cm)': 'min_max',
-        'sepal width (cm)': 'standard',
-        'petal length (cm)': 'robust',
-        'petal width (cm)': 'max_abs',
-    },
-    quantile_range={
-        "petal length (cm)": (25.0, 75.0),
-    },
-)
-```
-
-#### **Normalization**
-
-Normalizes data using L1 or L2 norms.
-
-- Parameters:
-    - `transformation_options`: Dictionary specifying the normalization type. Options: `l1`, `l2`.
-
-```python
-from beaverfe.transformations import Normalization
-
-Normalization(
-    transformation_options={
-        'sepal length (cm)': 'l1',
-        'sepal width (cm)': 'l2',
-    }
-)
-```
-
-<a id="numerical-features"></a>
-### 📌 Numerical Features
-
-#### **Spline Transformations**
-
-Applies Spline transformation to numerical features.
-
-- Parameters:
-    - `transformation_options`: Dictionary specifying the spline transformation settings for each column. Options include different numbers of knots and degrees.
-
-```python
-from beaverfe.transformations import SplineTransformation
-
-SplineTransformation(
-    transformation_options={
-        'sepal length (cm)': {'degree': 3, 'n_knots': 3},
-        'sepal width (cm)': {'degree': 3, 'n_knots': 5},
-    }
-)
-```
-
-#### **Numerical Binning**
-
-Bins numerical columns into categories. You can now specify the column, the binning method, and the number of bins in a tuple.
-
-- Parameters:
-    - `transformation_options`: Dictionary specifying the binning method and number of bins for each column. Options for binning methods are `uniform`, `quantile` or `kmeans`.
-
-```python
-from beaverfe.transformations import NumericalBinning
-
-NumericalBinning(
-    transformation_options={
-        "sepal length (cm)": ("uniform", 5),
-        "sepal width (cm)": ("quantile", 6),
-        "petal length (cm)": ("kmeans", 7),
-    }
-)
-```
-
-#### **Mathematical Operations**
-
-Performs mathematical operations between columns.
-
-- Parameters:
-    - `operations_options`: List of tuples specifying the columns and the operation.
-
-- **Options**:
-    - `add`: Adds the values of two columns.
-    - `subtract`: Subtracts the values of two columns.
-    - `multiply`: Multiplies the values of two columns.
-    - `divide`: Divides the values of two columns.
-    - `modulus`: Computes the modulus of two columns.
-    - `hypotenuse`: Computes the hypotenuse of two columns.
-    - `mean`: Calculates the mean of two columns.
-
-```python
-from beaverfe.transformations import MathematicalOperations
-
-MathematicalOperations(
-    operations_options=[
-        ('sepal length (cm)', 'sepal width (cm)', 'add'),
-        ('petal length (cm)', 'petal width (cm)', 'subtract'),
-        ('sepal length (cm)', 'petal length (cm)', 'multiply'),
-        ('sepal width (cm)', 'petal width (cm)', 'divide'),
-        ('sepal length (cm)', 'petal width (cm)', 'modulus'),
-        ('sepal length (cm)', 'sepal width (cm)', 'hypotenuse'),
-        ('petal length (cm)', 'petal width (cm)', 'mean'),
-    ]
-)
-```
-
-<a id="categorical-features"></a>
-### 📌 Categorical Features
-
-#### **Categorical Encoding**
-
-Encodes categorical variables using various methods.
-
-- Parameters:
-    - `encodings_options`: Dictionary specifying the encoding method for each column.
-    - `ordinal_orders`: Specifies the order for ordinal encoding.
-
-- **Encodings**:
-    - `backward_diff`: Uses backward difference coding to compare each category to the previous one.
-    - `basen`: Encodes categorical features using a base-N representation.
-    - `binary`: Converts categorical variables into binary representations.
-    - `catboost`: Implements the CatBoost encoding, which is a target-based encoding method.
-    - `count`: Replaces categories with the count of occurrences in the dataset.
-    - `dummy`: Applies dummy coding, similar to one-hot encoding but with one less category to avoid collinearity.
-    - `glmm`: Uses Generalized Linear Mixed Models to encode categorical variables.
-    - `gray`: Converts categories into Gray code, a binary numeral system where two successive values differ in only one bit.
-    - `hashing`: Uses a hashing trick to encode categorical features into a fixed number of dimensions.
-    - `helmert`: Compares each level of a categorical variable to the mean of subsequent levels.
-    - `james_stein`: Applies James-Stein shrinkage estimation for target encoding.
-    - `label`: Assigns each category a unique integer label.
-    - `loo`: Uses leave-one-out target encoding to replace categories with the mean target value, excluding the current row.
-    - `m_estimate`: A variant of target encoding that applies an m-estimate to regularize values.
-    - `onehot`: Converts categorical variables into binary vectors where each category is represented by a separate column.
-    - `ordinal`: Replaces categories with ordinal values based on their ordering.
-    - `polynomial`: Applies polynomial contrast coding to categorical variables.
-    - `quantile`: Maps categorical variables to quantiles based on their distribution.
-    - `rankhot`: Encodes categories based on their ranking, similar to one-hot but considering order.
-    - `sum`: Uses sum coding to compare each level to the overall mean.
-    - `target`: Encodes categories using the mean of the target variable for each category.
-    - `woe`: Applies Weight of Evidence (WoE) encoding, useful in logistic regression by transforming categorical data into log odds.
-
-```python
-from beaverfe.transformations import CategoricalEncoding
-
-CategoricalEncoding(
-    transformation_options={
-        'Sex': 'label',
-        'Size': 'ordinal',
-    },
-    ordinal_orders={
-        "Size": ["small", "medium", "large"]
-    }
-)
-```
-
-<a id="periodic-features"></a>
-### 📌 Periodic Features
-
-#### **Date Time Transforms**
-
-Extracts time-based features like day, month, hour, etc.
-
-- Parameters:
-    - `features`: List of columns to extract date/time features from. If None, all datetime columns are considered.
-
-```python
-from beaverfe.transformations import DateTimeTransformer
-
-DateTimeTransformer(
-    features=["date"]
-)
-```
-
-#### **Cyclical Features Transforms**
-
-Encodes cyclical values using sine and cosine representations.
-
-- Parameters:
-    - `transformation_options`: Dictionary specifying the period for each cyclical column.
-
-```python
-from beaverfe.transformations import CyclicalFeaturesTransformer
-
-CyclicalFeaturesTransformer(
-    transformation_options={
-        "date_minute": 60,
-        "date_hour": 24,
-    }
-)
-```
-
-<a id="features-reduction"></a>
-### 📌 Features Reduction
-
-#### **Column Selection**
-
-Selects a subset of columns for further transformation.
-
-- Parameters:
-    - `features`: List of column names to select.
-
-```python
-from beaverfe.transformations import ColumnSelection
-
-ColumnSelection(
-    features=[
-        "sepal length (cm)",
-        "sepal width (cm)",
-    ]
-)
-```
-
-#### **Dimensionality Reduction**
-
-Reduces the dimensionality of the dataset using various techniques, such as PCA, Factor Analysis, ICA, LDA, and others.
-
-- Parameters:
-    - `features`: List of column names to apply the dimensionality reduction. If None, all columns are considered.
-    - `method`: The dimensionality reduction method to apply.
-    - `n_components`: Number of dimensions to reduce the data to.
-
-- **Methods**:
-    - `pca`: Principal Component Analysis.
-    - `factor_analysis`: Factor Analysis.
-    - `ica`: Independent Component Analysis.
-    - `kernel_pca`: Kernel PCA.
-    - `lda`: Linear Discriminant Analysis.
-    - `truncated_svd`: Truncated Singular Value Decomposition.
-    - `isomap`: Isomap Embedding.
-    - `lle`: Locally Linear Embedding.
-
-- **Notes**:
-For `lda`, the y target variable is required, as it uses class labels for discriminant analysis.
-
-```python
-from beaverfe.transformations import DimensionalityReduction
-
-DimensionalityReduction(
-    method="pca",
-    n_components=3
-)
-```
+For the full reference of all transformers, parameters, and code examples see [TRANSFORMATIONS.md](TRANSFORMATIONS.md).
 
 ---
 

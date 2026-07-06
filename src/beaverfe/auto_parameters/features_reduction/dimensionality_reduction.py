@@ -1,120 +1,64 @@
-from typing import Any
+import numpy as np
+import pandas as pd
 
-from beaverfe.auto_parameters.shared import evaluate_model
-from beaverfe.auto_parameters.shared.utils import is_score_improved
-from beaverfe.transformations import DimensionalityReduction
-from beaverfe.utils.verbose import VerboseLogger
+from beaverfe.auto_parameters.shared.space_generator import SearchSpace, SpaceGenerator
+from beaverfe.model_profiler import DataProfiler
 
 
-class DimensionalityReductionParameterSelector:
-    def select_best_parameters(
-        self,
-        X,
-        y,
-        model,
-        scoring,
-        direction: str,
-        cv,
-        groups,
-        tol,
-        logger: VerboseLogger,
-    ) -> dict[str, Any] | None:
-        logger.task_start("Starting dimensionality reduction")
+class DimensionalityReductionSpaceGenerator(SpaceGenerator):
+    N_COMPONENTS_OPTIONS = [2, 5, 10, 25, 50]
 
-        n_features = X.shape[1]
-        n_classes = y.nunique()
+    def __init__(self) -> None:
+        self._profiler: DataProfiler | None = None
 
-        if n_features < 2:
-            logger.warn("No dimensionality reduction was applied: less than 2 columns")
-            return None
+    def set_profiler(self, profiler: DataProfiler) -> None:
+        """Inject a :class:`~beaverfe.model_profiler.DataProfiler` to enable
+        data-aware search space capping and method filtering.
 
-        best_method = None
-        best_n_components = None
-        best_score = evaluate_model(X, y, model, scoring, cv, groups)
-        logger.baseline(f"Base score: {best_score:.4f}")
+        Args:
+            profiler: Frozen profile computed from the training data.
+        """
+        self._profiler = profiler
+
+    def get_search_space(
+        self, X: pd.DataFrame, y: pd.Series | np.ndarray
+    ) -> SearchSpace:
+        if X.shape[1] < 2:
+            return {}
+
+        y_series = y if isinstance(y, pd.Series) else pd.Series(y)
+        n_classes = int(y_series.nunique())
+
+        if self._profiler is not None:
+            max_components = min(50, X.shape[1], self._profiler.n_samples // 3)
+        else:
+            max_components = min(50, X.shape[1])
 
         methods = self._get_applicable_methods(X)
 
-        for method in methods:
-            max_components = min(50, n_features)
-            if method == "lda":
-                max_components = min(max_components, n_classes - 1)
+        if not methods:
+            return {}
 
-            n_components, score = self._search_optimal_components(
-                X, y, method, (2, max_components), model, scoring, direction, cv, groups
-            )
-            logger.progress(f"   ↪ Tried '{method}' → Score: {score:.4f}")
+        # Determine n_components options: filter to <= max_components
+        component_options: list[int] = [
+            n for n in self.N_COMPONENTS_OPTIONS if n <= max_components
+        ]
+        # For LDA, also filter to <= n_classes - 1
+        has_lda = "lda" in methods
+        if has_lda and not [n for n in component_options if n <= n_classes - 1]:
+            # If no component fits LDA, remove lda
+            methods = [m for m in methods if m != "lda"]
 
-            if is_score_improved(score, best_score, direction, tol):
-                best_score = score
-                best_method = method
-                best_n_components = n_components
+        if not methods:
+            return {}
 
-        if best_method:
-            transformer = DimensionalityReduction(
-                features=list(X.columns),
-                method=best_method,
-                n_components=best_n_components,
-            )
-            logger.task_result(
-                f"Best method: {best_method} with {best_n_components} components"
-            )
-            return {
-                "name": transformer.__class__.__name__,
-                "params": transformer.get_params(),
-            }
+        if not component_options:
+            return {}
 
-        logger.warn("No dimensionality reduction was applied")
-        return None
+        return {
+            "dim_reduction_method": ["none", *methods],
+            "dim_reduction_n_components": component_options,
+        }
 
-    def _get_applicable_methods(self, X):
+    def _get_applicable_methods(self, X: pd.DataFrame) -> list[str]:
         return ["lda", "pca", "truncated_svd"]
-
-    def _search_optimal_components(
-        self,
-        X,
-        y,
-        method: str,
-        n_range: tuple[int, int],
-        model,
-        scoring,
-        direction: str,
-        cv,
-        groups,
-    ) -> tuple[int, float]:
-        low, high = n_range
-        best_n = low
-        best_score = float("-inf") if direction == "maximize" else float("inf")
-        scores = {}
-
-        while low <= high:
-            mid1 = low + (high - low) // 3
-            mid2 = high - (high - low) // 3
-
-            for mid in [mid1, mid2]:
-                if mid not in scores:
-                    transformer = DimensionalityReduction(
-                        features=list(X.columns),
-                        method=method,
-                        n_components=mid,
-                    )
-                    scores[mid] = evaluate_model(
-                        X, y, model, scoring, cv, groups, transformer
-                    )
-
-            score1, score2 = scores[mid1], scores[mid2]
-
-            if is_score_improved(score1, best_score, direction):
-                best_score = score1
-                best_n = mid1
-
-            if is_score_improved(score2, best_score, direction):
-                best_score = score2
-                best_n = mid2
-
-            if is_score_improved(score2, score1, direction):
-                low = mid1 + 1
-            else:
-                high = mid2 - 1
-
-        return best_n, best_score

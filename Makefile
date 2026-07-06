@@ -1,4 +1,4 @@
-.PHONY: help install clean lint format type-check test coverage tox commit bump build docs
+.PHONY: help install clean lint format type-check test integration coverage tox commit bump build docs
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -29,8 +29,11 @@ type-check: ## Run type checking with mypy
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 
-test: ## Run tests
+test: ## Run unit tests
 	uv run pytest
+
+integration: ## Run integration tests (slow — full Optuna search loops)
+	uv run pytest tests_integration/
 
 coverage: ## Run tests with coverage report
 	uv run pytest --cov --cov-report=term-missing --cov-report=html
@@ -48,8 +51,3 @@ bump: ## Bump version and update CHANGELOG
 
 build: ## Build distribution package
 	uv build
-
-# ── Documentation ─────────────────────────────────────────────────────────────
-
-docs: ## Generate API documentation
-	uv run python scripts/generate_api_docs.py

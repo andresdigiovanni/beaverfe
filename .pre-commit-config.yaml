@@ -7,46 +7,46 @@ repos:
     hooks:
       - id: trailing-whitespace
         name: trim trailing whitespace
-        entry: uv run trailing-whitespace-fixer
+        entry: uv run --frozen trailing-whitespace-fixer
         language: system
         types: [text]
       - id: end-of-file-fixer
         name: fix end of files
-        entry: uv run end-of-file-fixer
+        entry: uv run --frozen end-of-file-fixer
         language: system
         types: [text]
       - id: check-yaml
         name: check yaml
-        entry: uv run check-yaml
+        entry: uv run --frozen check-yaml
         language: system
         types: [yaml]
       - id: check-added-large-files
         name: check for added large files
-        entry: uv run check-added-large-files
+        entry: uv run --frozen check-added-large-files
         language: system
       - id: check-json
         name: check json
-        entry: uv run check-json
+        entry: uv run --frozen check-json
         language: system
         types: [json]
       - id: check-toml
         name: check toml
-        entry: uv run check-toml
+        entry: uv run --frozen check-toml
         language: system
         types: [toml]
       - id: check-merge-conflict
         name: check for merge conflicts
-        entry: uv run check-merge-conflict
+        entry: uv run --frozen check-merge-conflict
         language: system
         types: [text]
       - id: debug-statement-hook
         name: debug statements (python)
-        entry: uv run debug-statement-hook
+        entry: uv run --frozen debug-statement-hook
         language: system
         types: [python]
       - id: mixed-line-ending
         name: mixed line ending
-        entry: uv run mixed-line-ending
+        entry: uv run --frozen mixed-line-ending
         language: system
         types: [text]
 
@@ -55,12 +55,12 @@ repos:
     hooks:
       - id: ruff
         name: ruff (lint)
-        entry: uv run ruff check --fix
+        entry: uv run --frozen ruff check --fix
         language: system
         types: [python]
       - id: ruff-format
         name: ruff (format)
-        entry: uv run ruff format
+        entry: uv run --frozen ruff format
         language: system
         types: [python]
 
@@ -69,7 +69,7 @@ repos:
     hooks:
       - id: mypy
         name: mypy
-        entry: uv run mypy
+        entry: uv run --frozen mypy
         language: system
         types: [python]
         args: [src/]
@@ -80,6 +80,6 @@ repos:
     hooks:
       - id: commitizen
         name: commitizen
-        entry: uv run cz check --commit-msg-file
+        entry: uv run --frozen cz check --commit-msg-file
         language: system
         stages: [commit-msg]

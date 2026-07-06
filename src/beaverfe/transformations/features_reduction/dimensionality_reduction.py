@@ -17,56 +17,48 @@ class DimensionalityReduction(BaseEstimator, TransformerMixin):
         self.tracked_columns = {}
         self._reducer = None
 
-    def get_params(self, deep=True):
-        return {
-            "features": self.features,
-            "method": self.method,
-            "n_components": self.n_components,
-        }
-
-    def set_params(self, **params):
-        for key, value in params.items():
-            setattr(self, key, value)
-
-        return self
-
     def fit(self, X, y=None):
         X = X.copy()
         X = X[self.features]
 
         self._reducer = None
 
+        # Clamp n_components to the number of available features so that callers
+        # never need to guard against the sklearn "n_components > n_features" error
+        # (can happen when the feature list is pruned after the search space is built).
+        n_components = min(self.n_components, X.shape[1])
+
         if self.method == "factor_analysis":
-            self._reducer = FactorAnalysis(n_components=self.n_components).fit(X)
+            self._reducer = FactorAnalysis(n_components=n_components).fit(X)
 
         elif self.method == "ica":
-            self._reducer = FastICA(n_components=self.n_components).fit(X)
+            self._reducer = FastICA(n_components=n_components).fit(X)
 
         elif self.method == "isomap":
-            self._reducer = Isomap(n_components=self.n_components).fit(X)
+            self._reducer = Isomap(n_components=n_components).fit(X)
 
         elif self.method == "kernel_pca":
-            self._reducer = KernelPCA(n_components=self.n_components, kernel="rbf").fit(
-                X
-            )
+            self._reducer = KernelPCA(n_components=n_components, kernel="rbf").fit(X)
 
         elif self.method == "lda":
             if y is None:
                 raise ValueError("LDA requires target values (y)")
-            self._reducer = LinearDiscriminantAnalysis(
-                n_components=self.n_components
-            ).fit(X, y)
+            self._reducer = LinearDiscriminantAnalysis(n_components=n_components).fit(
+                X, y
+            )
 
         elif self.method == "lle":
-            self._reducer = LocallyLinearEmbedding(
-                n_components=self.n_components, eigen_solver="dense"
-            ).fit(X)
+            # eigen_solver left at its sklearn default ("auto") rather than
+            # forced to "dense": "dense" is an O(n^3) solve regardless of
+            # dataset size, while "auto" picks a sparse/iterative solver for
+            # larger inputs.
+            self._reducer = LocallyLinearEmbedding(n_components=n_components).fit(X)
 
         elif self.method == "pca":
-            self._reducer = PCA(n_components=self.n_components).fit(X)
+            self._reducer = PCA(n_components=n_components).fit(X)
 
         elif self.method == "truncated_svd":
-            self._reducer = TruncatedSVD(n_components=self.n_components).fit(X)
+            self._reducer = TruncatedSVD(n_components=n_components).fit(X)
 
         else:
             raise ValueError(f"Unknown reduction method: {self.method}")

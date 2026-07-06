@@ -24,20 +24,6 @@ class OutliersHandler(BaseEstimator, TransformerMixin):
         self._bounds = {}
         self._handlers = {}
 
-    def get_params(self, deep=True):
-        return {
-            "transformation_options": self.transformation_options,
-            "thresholds": self.thresholds,
-            "lof_params": self.lof_params,
-            "iforest_params": self.iforest_params,
-        }
-
-    def set_params(self, **params):
-        for key, value in params.items():
-            setattr(self, key, value)
-
-        return self
-
     def fit(self, X, y=None):
         self._statistics = {}
         self._bounds = {}

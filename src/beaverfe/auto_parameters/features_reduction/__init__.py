@@ -1,2 +1,2 @@
-from .column_selection import ColumnSelectionParameterSelector
-from .dimensionality_reduction import DimensionalityReductionParameterSelector
+from .column_selection import ColumnSelectionSpaceGenerator
+from .dimensionality_reduction import DimensionalityReductionSpaceGenerator

@@ -1,7 +1,10 @@
+import time
+
 import numpy as np
+import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin, clone
 from sklearn.inspection import permutation_importance
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, train_test_split
 
 
 class PermutationRFECV(BaseEstimator, TransformerMixin):
@@ -14,6 +17,7 @@ class PermutationRFECV(BaseEstimator, TransformerMixin):
         step=1,
         n_repeats=5,
         random_state=None,
+        max_time_seconds=None,
     ):
         self.estimator = estimator
         self.scoring = scoring
@@ -22,31 +26,55 @@ class PermutationRFECV(BaseEstimator, TransformerMixin):
         self.step = step
         self.n_repeats = n_repeats
         self.random_state = random_state
+        self.max_time_seconds = max_time_seconds
 
     def fit(self, X, y, groups=None):
-        # Store feature names
+        # Keep X as a DataFrame throughout so estimators that look up columns
+        # by name (e.g. a nested feature-engineering pipeline) keep working
+        # when we slice down to a subset of features.
         if hasattr(X, "columns"):
             self.feature_names_in_ = np.asarray(X.columns)
-            X = X.values
         else:
-            X = np.asarray(X)
+            X = pd.DataFrame(np.asarray(X))
             self.feature_names_in_ = np.array([f"x{i}" for i in range(X.shape[1])])
+            X.columns = self.feature_names_in_
 
         n_features = X.shape[1]
         self.n_total_features_ = n_features
         self.support_ = np.ones(n_features, dtype=bool)
         self.ranking_ = np.ones(n_features, dtype=int)
-        self.scores_ = []
+        self.scores_: list[tuple[np.ndarray, float]] = []
+
+        # Hold out a validation slice used exclusively for permutation importance.
+        # Using a separate split avoids overestimating importance on training data
+        # (where a fitted model may have memorised the samples). The main
+        # cross-validated score stored in self.scores_ still uses the full X/y,
+        # so the final subset selection remains unbiased.
+        X_train_imp, X_val_imp, y_train_imp, y_val_imp = train_test_split(
+            X, np.asarray(y), test_size=0.2, random_state=self.random_state
+        )
 
         current_features = np.arange(n_features)
+        start_time = time.time()
 
         while len(current_features) >= self.min_features_to_select:
+            # Stop elimination once the time budget is spent, keeping the
+            # best subset found among rounds already completed. Only honored
+            # once at least one round has scored something, so this never
+            # leaves self.scores_ empty for the selection step below.
+            if (
+                self.max_time_seconds is not None
+                and self.scores_
+                and time.time() - start_time >= self.max_time_seconds
+            ):
+                break
+
             # Evaluate cross-validated performance
             estimator = clone(self.estimator)
             cv_score = np.mean(
                 cross_val_score(
                     estimator,
-                    X[:, current_features],
+                    X.iloc[:, current_features],
                     y,
                     scoring=self.scoring,
                     cv=self.cv,
@@ -58,14 +86,16 @@ class PermutationRFECV(BaseEstimator, TransformerMixin):
             if len(current_features) == self.min_features_to_select:
                 break
 
-            # Fit on current features
-            estimator.fit(X[:, current_features], y)
-
-            # Compute permutation importance
+            # Fit on the importance-training split, then evaluate permutation
+            # importance on the held-out validation split. This prevents the
+            # estimator from inflating importance scores for features it simply
+            # memorised on the training set.
+            estimator = clone(self.estimator)
+            estimator.fit(X_train_imp.iloc[:, current_features], y_train_imp)
             result = permutation_importance(
                 estimator,
-                X[:, current_features],
-                y,
+                X_val_imp.iloc[:, current_features],
+                y_val_imp,
                 scoring=self.scoring,
                 n_repeats=self.n_repeats,
                 random_state=self.random_state,
@@ -87,15 +117,28 @@ class PermutationRFECV(BaseEstimator, TransformerMixin):
             self.support_[current_features[remove_indices]] = False
             current_features = np.delete(current_features, remove_indices)
 
-        # Select the best-performing subset
-        best_features, _best_score = max(self.scores_, key=lambda x: x[1])
+        # Select the best-performing subset.
+        # When multiple rounds share the same (or nearly equal) top score,
+        # prefer the subset with the fewest features — this avoids returning
+        # all features in score-plateau situations (a common occurrence when the
+        # dataset is small or the model is robust to redundant inputs).
+        best_score = max(score for _, score in self.scores_)
+        tol = max(abs(best_score) * 1e-4, 1e-6)
+        best_features, _best_score = min(
+            (
+                (feats, score)
+                for feats, score in self.scores_
+                if best_score - score <= tol
+            ),
+            key=lambda x: len(x[0]),
+        )
         self.support_ = np.zeros(n_features, dtype=bool)
         self.support_[best_features] = True
         self.n_features_ = self.support_.sum()
         self.grid_scores_ = [score for _, score in self.scores_]
 
         # Fit final model
-        self.estimator_ = clone(self.estimator).fit(X[:, self.support_], y)
+        self.estimator_ = clone(self.estimator).fit(X.iloc[:, self.support_], y)
         return self
 
     def transform(self, X):

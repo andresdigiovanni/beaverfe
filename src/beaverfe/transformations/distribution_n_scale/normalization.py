@@ -4,25 +4,16 @@ from sklearn.preprocessing import Normalizer
 
 class Normalization(BaseEstimator, TransformerMixin):
     def __init__(self, transformation_options=None, track_columns=False):
-        self.transformation_options = transformation_options or {}
+        self.transformation_options = transformation_options
         self.track_columns = track_columns
 
         self.tracked_columns = {}
         self._transformers = {}
 
-    def get_params(self, deep=True):
-        return {"transformation_options": self.transformation_options}
-
-    def set_params(self, **params):
-        for key, value in params.items():
-            setattr(self, key, value)
-
-        return self
-
     def fit(self, X, y=None):
         self._transformers = {}
 
-        for column, transformation in self.transformation_options.items():
+        for column, transformation in (self.transformation_options or {}).items():
             if transformation in ["l1", "l2"]:
                 transformer = Normalizer(norm=transformation)
                 transformer.fit(X[[column]])

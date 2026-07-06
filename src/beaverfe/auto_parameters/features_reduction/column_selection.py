@@ -1,51 +1,20 @@
-from typing import Any
+import numpy as np
+import pandas as pd
 
-from sklearn.feature_selection import RFECV
-
-from beaverfe.auto_parameters.shared import PermutationRFECV
-from beaverfe.transformations import ColumnSelection
+from beaverfe.auto_parameters.shared.space_generator import SearchSpace, SpaceGenerator
 from beaverfe.transformations.utils import dtypes
-from beaverfe.utils.verbose import VerboseLogger
 
 
-class ColumnSelectionParameterSelector:
-    def select_best_parameters(
-        self,
-        X,
-        y,
-        model,
-        scoring,
-        direction: str,
-        cv,
-        groups,
-        tol,
-        logger: VerboseLogger,
-    ) -> dict[str, Any] | None:
-        """
-        Selects the most informative subset of features using recursive feature addition.
-        """
-
-        logger.task_start("Starting feature selection")
-
+class ColumnSelectionSpaceGenerator(SpaceGenerator):
+    def get_search_space(
+        self, X: pd.DataFrame, y: pd.Series | np.ndarray
+    ) -> SearchSpace:
         columns = dtypes.numerical_columns(X)
         if not columns:
-            logger.warn("No numerical columns found for feature selection.")
-            return None
-
-        X_filtered = X[columns]
-
-        if hasattr(model, "feature_importances_") or hasattr(model, "coef_"):
-            rfecv = RFECV(estimator=model, scoring=scoring, cv=cv, step=0.2)
-        else:
-            rfecv = PermutationRFECV(estimator=model, scoring=scoring, cv=cv, step=0.2)
-
-        rfecv.fit(X_filtered, y, groups=groups)
-        selected_features = list(rfecv.get_feature_names_out())
-
-        logger.task_result(f"{len(selected_features)} feature(s) selected")
-
-        transformer = ColumnSelection(selected_features)
-        return {
-            "name": transformer.__class__.__name__,
-            "params": transformer.get_params(),
-        }
+            return {}
+        # Column selection has no dedicated pipeline block and is never
+        # sampled via Optuna; this candidate list is only consumed by
+        # PipelineAssembler._decode_dim_reduction. The actual
+        # column-elimination decision happens post-hoc, via permutation
+        # importance, in auto_feature_pipeline._prune_eliminated_columns.
+        return {"column_selection_candidates": [columns]}

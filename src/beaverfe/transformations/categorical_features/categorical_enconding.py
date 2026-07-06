@@ -7,29 +7,18 @@ class CategoricalEncoding(BaseEstimator, TransformerMixin):
     def __init__(
         self, transformation_options=None, ordinal_orders=None, track_columns=False
     ):
-        self.transformation_options = transformation_options or {}
+        self.transformation_options = transformation_options
         self.ordinal_orders = ordinal_orders
         self.track_columns = track_columns
 
         self.tracked_columns = {}
         self._encoders = {}
 
-    def get_params(self, deep=True):
-        return {
-            "transformation_options": self.transformation_options,
-            "ordinal_orders": self.ordinal_orders,
-        }
-
-    def set_params(self, **params):
-        for key, value in params.items():
-            setattr(self, key, value)
-        return self
-
     def fit(self, X, y=None):
         self._encoders = {}
         X = X.copy()
 
-        for column, transformation in self.transformation_options.items():
+        for column, transformation in (self.transformation_options or {}).items():
             self._fit_encoder(X, y, column, transformation)
 
         return self
@@ -84,7 +73,7 @@ class CategoricalEncoding(BaseEstimator, TransformerMixin):
 
     def transform(self, X, y=None):
         X = X.copy()
-        for column, transformation in self.transformation_options.items():
+        for column, transformation in (self.transformation_options or {}).items():
             X[column] = X[column].fillna("Unknown")
             X = self._transform_column(
                 X, column, transformation, self._encoders[column]

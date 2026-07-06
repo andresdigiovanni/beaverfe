@@ -8,15 +8,6 @@ class ColumnSelection(BaseEstimator, TransformerMixin):
 
         self.tracked_columns = {}
 
-    def get_params(self, deep=True):
-        return {"features": self.features}
-
-    def set_params(self, **params):
-        for key, value in params.items():
-            setattr(self, key, value)
-
-        return self
-
     def fit(self, X, y=None):
         # No fitting required, maintaining compatibility with scikit-learn API
         return self

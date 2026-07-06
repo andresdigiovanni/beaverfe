@@ -4,28 +4,17 @@ from sklearn.preprocessing import KBinsDiscretizer
 
 class NumericalBinning(BaseEstimator, TransformerMixin):
     def __init__(self, transformation_options=None, track_columns=False):
-        self.transformation_options = transformation_options or {}
+        self.transformation_options = transformation_options
         self.track_columns = track_columns
 
         self.tracked_columns = {}
         self._binners = {}
 
-    def get_params(self, deep=True):
-        return {
-            "transformation_options": self.transformation_options,
-        }
-
-    def set_params(self, **params):
-        for key, value in params.items():
-            setattr(self, key, value)
-
-        return self
-
     def fit(self, X, y=None):
         self._binners = {}
         X = X.copy()
 
-        for column, (strategy, n_bins) in self.transformation_options.items():
+        for column, (strategy, n_bins) in (self.transformation_options or {}).items():
             X[column] = X[column].fillna(0)
 
             binner = KBinsDiscretizer(
@@ -37,13 +26,14 @@ class NumericalBinning(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X, y=None):
-        X = X.copy().fillna(0)
+        X = X.copy()
 
-        for column, (strategy, n_bins) in self.transformation_options.items():
+        for column, (strategy, n_bins) in (self.transformation_options or {}).items():
             binner_name = f"{column}__bins_{strategy}_{n_bins}"
             binner = self._binners[column]
 
-            X[binner_name] = binner.transform(X[[column]]).flatten()
+            binned_input = X[[column]].fillna(0)
+            X[binner_name] = binner.transform(binned_input).flatten()
 
             if self.track_columns:
                 self.tracked_columns[binner_name] = [column]

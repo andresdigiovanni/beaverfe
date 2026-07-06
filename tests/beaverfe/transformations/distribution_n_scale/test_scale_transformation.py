@@ -11,7 +11,7 @@ class TestScaleTransformation:
     def test_initialize_with_default_options(self):
         scale_transformation = ScaleTransformation()
 
-        assert scale_transformation.transformation_options == {}
+        assert scale_transformation.transformation_options is None
         assert scale_transformation._transformers == {}
 
     # Initialize with empty transformation options and verify no errors occur during fit

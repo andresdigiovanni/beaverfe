@@ -9,7 +9,7 @@ class TestQuantileTransformation:
     def test_initialization_with_default_options(self):
         qt = QuantileTransformation()
 
-        assert qt.transformation_options == {}
+        assert qt.transformation_options is None
         assert qt._transformers == {}
 
     # Pass an empty DataFrame to fit and ensure no errors occur

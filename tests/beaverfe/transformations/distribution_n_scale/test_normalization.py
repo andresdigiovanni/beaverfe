@@ -8,7 +8,7 @@ class TestNormalization:
     def test_initialization_with_default_options(self):
         normalization = Normalization()
 
-        assert normalization.transformation_options == {}
+        assert normalization.transformation_options is None
 
     # Handles empty transformation_options gracefully without errors
     def test_empty_transformation_options(self):
@@ -30,7 +30,7 @@ class TestNormalization:
         retrieved_params = normalization.get_params()
 
         # Assert
-        assert retrieved_params == params
+        assert retrieved_params == {**params, "track_columns": False}
 
     # Successfully fits transformers for specified columns with 'l1' or 'l2' normalization
     def test_fit_transformers(self):

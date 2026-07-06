@@ -5,6 +5,7 @@ import numpy as np
 
 from beaverfe import BeaverPipeline
 from beaverfe.auto_parameters.shared import evaluate_model
+from beaverfe.pipeline_blocks import CANONICAL_ORDER
 
 
 def evaluate_transformations(
@@ -16,6 +17,7 @@ def evaluate_transformations(
     cv: int | Callable | None = None,
     groups: np.ndarray | None = None,
     plot_file: str | None = "performance_evolution.png",
+    max_steps: int | None = None,
 ) -> list[dict]:
     """
     Evaluates a model by incrementally applying transformations and
@@ -39,12 +41,26 @@ def evaluate_transformations(
         Groups for cross-validation if applicable.
     plot_file : str, optional
         Path where the plot will be saved. Default is "performance_evolution.png".
+    max_steps : int or None, optional
+        Maximum number of transformation steps to evaluate. When not None,
+        only the first ``max_steps`` transformations are considered. None
+        (default) evaluates all steps.
 
     Returns
     -------
     scores : list of dict
         List with transformation names and corresponding scores.
+
+    Notes
+    -----
+    This utility runs one full cross-validation per transformation step (O(T) CV
+    evaluations where T = len(transformations)). For a recipe of T steps with
+    cv=5 folds, this requires 5T + 5 model fits. For long recipes or large
+    datasets, use ``max_steps`` to limit evaluation to the first N steps.
     """
+    if max_steps is not None:
+        transformations = transformations[:max_steps]
+
     scores = []
     transformations_applied = []
 
@@ -55,7 +71,10 @@ def evaluate_transformations(
     # Incremental evaluation
     for transformation in transformations:
         transformations_applied.append(transformation)
-        pipe = BeaverPipeline(transformations_applied)
+        # Reorder to CANONICAL_ORDER so the score curve reflects the order
+        # BeaverPipeline actually runs in production, not the order
+        # transformations happen to be listed in the input.
+        pipe = BeaverPipeline(transformations_applied, order=CANONICAL_ORDER)
         score = evaluate_model(X, y, model, scoring, cv, groups, pipe)
         scores.append({"name": transformation["name"], "score": score})
 

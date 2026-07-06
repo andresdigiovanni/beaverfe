@@ -11,15 +11,6 @@ class NonLinearTransformation(BaseEstimator, TransformerMixin):
         self.tracked_columns = {}
         self._transformers = {}
 
-    def get_params(self, deep=True):
-        return {"transformation_options": self.transformation_options}
-
-    def set_params(self, **params):
-        for key, value in params.items():
-            setattr(self, key, value)
-
-        return self
-
     def fit(self, X, y=None):
         self._transformers = {}
 

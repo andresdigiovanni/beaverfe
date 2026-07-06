@@ -1,3 +1,3 @@
-from .missing_values_handler import MissingValuesHandlerParameterSelector
-from .missing_values_indicator import MissingValuesIndicatorParameterSelector
-from .outliers_handler import OutliersParameterSelector
+from .missing_values_handler import MissingValuesHandlerSpaceGenerator
+from .missing_values_indicator import MissingValuesIndicatorSpaceGenerator
+from .outliers_handler import OutliersSpaceGenerator
