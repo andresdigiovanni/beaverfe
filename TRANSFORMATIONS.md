@@ -1,8 +1,34 @@
-# 🔍 Available Transformations
+# ⚙️ Available Transformations
 
 Grouped by feature type or transformation category:
 
-## 📌 Missing Values & Outliers
+## Table of Contents
+
+- [❌ Missing Values & Outliers](#-missing-values--outliers)
+  - [Missing Values Indicator](#missing-values-indicator)
+  - [Missing Values Handler](#missing-values-handler)
+  - [Handle Outliers](#handle-outliers)
+- [📊 Data Distribution & Scaling](#-data-distribution--scaling)
+  - [Non-Linear Transformation](#non-linear-transformation)
+  - [Quantile Transformations](#quantile-transformations)
+  - [Scale Transformations](#scale-transformations)
+  - [Normalization](#normalization)
+- [🔢 Numerical Features](#-numerical-features)
+  - [Spline Transformations](#spline-transformations)
+  - [Numerical Binning](#numerical-binning)
+  - [Mathematical Operations](#mathematical-operations)
+- [🏷️ Categorical Features](#-categorical-features)
+  - [Categorical Encoding](#categorical-encoding)
+- [⏰ Periodic Features](#-periodic-features)
+  - [Date Time Transforms](#date-time-transforms)
+  - [Cyclical Features Transforms](#cyclical-features-transforms)
+- [✂️ Features Reduction](#-features-reduction)
+  - [Column Selection](#column-selection)
+  - [Dimensionality Reduction](#dimensionality-reduction)
+
+---
+
+## ❌ Missing Values & Outliers
 
 ### **Missing Values Indicator**
 
@@ -84,7 +110,7 @@ OutliersHandler(
 
 ---
 
-## 📌 Data Distribution & Scaling
+## 📊 Data Distribution & Scaling
 
 ### **Non-Linear Transformation**
 
@@ -167,7 +193,7 @@ Normalization(
 
 ---
 
-## 📌 Numerical Features
+## 🔢 Numerical Features
 
 ### **Spline Transformations**
 
@@ -233,7 +259,7 @@ MathematicalOperations(
 
 ---
 
-## 📌 Categorical Features
+## 🏷️ Categorical Features
 
 ### **Categorical Encoding**
 
@@ -261,7 +287,7 @@ CategoricalEncoding(
 
 ---
 
-## 📌 Periodic Features
+## ⏰ Periodic Features
 
 ### **Date Time Transforms**
 
@@ -298,7 +324,7 @@ CyclicalFeaturesTransformer(
 
 ---
 
-## 📌 Features Reduction
+## ✂️ Features Reduction
 
 ### **Column Selection**
 

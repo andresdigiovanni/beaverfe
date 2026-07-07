@@ -5,42 +5,40 @@
 
 ---
 
-# **Beaver FE**
-
 *A Versatile Toolkit for Automated Feature Engineering in Machine Learning*
 
 **Beaver FE** is a Python library that streamlines feature engineering for machine learning. It provides robust tools for preprocessing tasks such as scaling, normalization, feature creation (e.g., binning, mathematical operations), and encoding. It improves data quality and boosts model performance with minimal manual effort.
 
-## 📌 Table of Contents
-- [**Beaver FE**](#beaver-fe)
-  - [📌 Table of Contents](#-table-of-contents)
-  - [🚀 Getting Started](#-getting-started)
-  - [📖 Usage Examples](#-usage-examples)
-    - [🤖 Automated Feature Engineering](#-automated-feature-engineering)
-    - [🔧 Manual Transformations](#-manual-transformations)
-    - [💾 Saving and Loading Transformations](#-saving-and-loading-transformations)
-  - [📊 Benchmark Results](#-benchmark-results)
-  - [🔎 Transformation Evaluation](#-transformation-evaluation)
+## Table of Contents
+- [Beaver FE](#beaver-fe)
+  - [Table of Contents](#-table-of-contents)
+  - [Getting Started](#-getting-started)
+  - [Usage Examples](#-usage-examples)
+    - [Automated Feature Engineering](#-automated-feature-engineering)
+    - [Manual Transformations](#-manual-transformations)
+    - [Saving and Loading Transformations](#-saving-and-loading-transformations)
+  - [Benchmark Results](#-benchmark-results)
+  - [Transformation Evaluation](#-transformation-evaluation)
     - [Example](#example)
     - [Output](#output)
-  - [🧩 Core API](#-core-api)
-    - [**auto\_feature\_pipeline**](#auto_feature_pipeline)
-      - [**Parameters:**](#parameters)
-      - [**Execution Order:**](#execution-order)
-      - [**Returns:**](#returns)
-    - [**BeaverPipeline**](#beaverpipeline)
-      - [**Constructor Parameters:**](#constructor-parameters)
-      - [**Public Methods:**](#public-methods)
-    - [**evaluate\_transformations**](#evaluate_transformations)
-      - [**Parameters:**](#parameters-1)
-      - [**Returns:**](#returns-1)
-  - [🔍 Available Transformations](#-available-transformations)
-  - [🛠️ Contributing](#️-contributing)
-  - [📄 License](#-license)
+  - [Core API](#-core-api)
+    - [auto\_feature\_pipeline](#auto_feature_pipeline)
+      - [Parameters:](#parameters)
+      - [Execution Order:](#execution-order)
+      - [Returns:](#returns)
+    - [BeaverPipeline](#beaverpipeline)
+      - [Constructor Parameters:](#constructor-parameters)
+      - [Public Methods:](#public-methods)
+    - [evaluate\_transformations](#evaluate_transformations)
+      - [Parameters:](#parameters-1)
+      - [Returns:](#returns-1)
+  - [Available Transformations](#-available-transformations)
+  - [Contributing](#️-contributing)
+  - [License](#-license)
 
 
 <a id="getting-started"></a>
-## 🚀 Getting Started
+## Getting Started
 
 Install Beaver FE using pip:
 
@@ -49,10 +47,10 @@ pip install beaverfe
 ```
 
 <a id="usage-examples"></a>
-## 📖 Usage Examples
+## Usage Examples
 
 <a id="automated-feature-engineering"></a>
-### 🤖 Automated Feature Engineering
+### Automated Feature Engineering
 
 Automatically optimize feature transformations using a given model and metric:
 
@@ -70,7 +68,7 @@ x_test = bfe.transform(x_test, y_test)
 
 
 <a id="manual-transformations"></a>
-### 🔧 Manual Transformations
+### Manual Transformations
 
 ```python
 from beaverfe import BeaverPipeline
@@ -121,7 +119,7 @@ x_test = bfe.transform(x_test, y_test)
 ```
 
 <a id="saving-and-loading-pipelines"></a>
-### 💾 Saving and Loading Transformations
+### Saving and Loading Transformations
 
 Save your pipeline for reuse across sessions:
 
@@ -145,7 +143,7 @@ bfe.set_params(**params)
 ---
 
 <a id="benchmark-results"></a>
-## 📊 Benchmark Results
+## Benchmark Results
 
 Beaver FE was evaluated on several datasets and models to assess its impact on model performance. The table below compares baseline accuracy versus accuracy after applying Beaver FE transformations:
 
@@ -170,7 +168,7 @@ Beaver FE was evaluated on several datasets and models to assess its impact on m
 ---
 
 <a id="transformation-evaluation"></a>
-## 🔎 Transformation Evaluation
+## Transformation Evaluation
 
 To better understand the impact of each transformation applied with **Beaver FE**, you can use the function `evaluate_transformations`.
 This utility evaluates the model performance after each incremental transformation and generates a plot showing the **score evolution** step by step.
@@ -225,7 +223,7 @@ print(scores)
 ---
 
 <a id="core-api"></a>
-## 🧩 Core API
+## Core API
 
 <a id="auto_feature_pipeline"></a>
 ### **auto_feature_pipeline**
@@ -338,21 +336,21 @@ from beaverfe import evaluate_transformations
 ---
 
 <a id="available-transformations"></a>
-## 🔍 Available Transformations
+## Available Transformations
 
 For the full reference of all transformers, parameters, and code examples see [TRANSFORMATIONS.md](TRANSFORMATIONS.md).
 
 ---
 
 <a id="contributing"></a>
-## 🛠️ Contributing
+## Contributing
 
 We welcome contributions! Please submit pull requests, open issues, or share suggestions to improve Beaver FE.
 
 ---
 
 <a id="license"></a>
-## 📄 License
+## License
 
 Beaver FE is open-source software distributed under the MIT License.
 
