@@ -20,6 +20,11 @@ class NonLinearTransformation(BaseEstimator, TransformerMixin):
                 transformer.fit(X[[column]])
                 self._transformers[column] = transformer
 
+            elif transformation == "box_cox":
+                transformer = PowerTransformer(method="box-cox", standardize=False)
+                transformer.fit(X[[column]])
+                self._transformers[column] = transformer
+
         return self
 
     def transform(self, X, y=None):
@@ -32,7 +37,7 @@ class NonLinearTransformation(BaseEstimator, TransformerMixin):
             elif transformation == "exponential":
                 X[column] = np.exp(X[column])
 
-            elif transformation == "yeo_johnson":
+            elif transformation in ("yeo_johnson", "box_cox"):
                 transformer = self._transformers[column]
                 X[column] = transformer.transform(X[[column]])
 

@@ -7,7 +7,7 @@ from beaverfe.auto_parameters.shared.space_generator import PerColumnSpaceGenera
 
 class NumericalBinningSpaceGenerator(PerColumnSpaceGenerator):
     prefix = "binning"
-    STRATEGIES = ["quantile"]
+    STRATEGIES = ["quantile", "uniform"]
     BIN_COUNTS = [5, 10]
 
     def _options_for_column(self, X: pd.DataFrame, col: str) -> list[str]:

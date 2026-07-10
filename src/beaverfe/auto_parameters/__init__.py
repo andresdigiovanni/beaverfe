@@ -1,11 +1,5 @@
 from .categorical_features import CategoricalEncodingSpaceGenerator
-from .distribution_n_scale import (
-    NonLinearTransformationSpaceGenerator,
-    NormalizationSpaceGenerator,
-    NormalizerSpaceGenerator,
-    QuantileTransformationSpaceGenerator,
-    ScaleTransformationSpaceGenerator,
-)
+from .distribution_n_scale import NormalizerSpaceGenerator
 from .features_reduction import (
     ColumnSelectionSpaceGenerator,
     DimensionalityReductionSpaceGenerator,

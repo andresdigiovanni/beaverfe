@@ -524,6 +524,7 @@ class PipelineAssembler:
         transformation_options: dict[str, tuple[str, str]] = {}
         thresholds: dict[str, float] = {}
         iforest_params: dict[str, dict[str, float]] = {}
+        lof_params: dict[str, dict[str, Any]] = {}
 
         for key, value in params.items():
             if not key.startswith("outlier_") or value == "none":
@@ -536,6 +537,8 @@ class PipelineAssembler:
                 thresholds[col] = outlier_kwargs["thresholds"][col]
             if "iforest_params" in outlier_kwargs:
                 iforest_params[col] = outlier_kwargs["iforest_params"][col]
+            if "lof_params" in outlier_kwargs:
+                lof_params[col] = outlier_kwargs["lof_params"][col]
 
         if not transformation_options:
             return []
@@ -547,6 +550,7 @@ class PipelineAssembler:
                     "transformation_options": transformation_options,
                     "thresholds": thresholds or None,
                     "iforest_params": iforest_params or None,
+                    "lof_params": lof_params or None,
                 },
                 "block": PipelineBlock.CLEANSE_OUTLIERS,
             }
@@ -560,6 +564,8 @@ class PipelineAssembler:
             kwargs: dict[str, Any] = {"transformation_options": {col: (action, method)}}
             if method == "iforest":
                 kwargs["iforest_params"] = {col: {"contamination": param}}
+            elif method == "lof":
+                kwargs["lof_params"] = {col: {"n_neighbors": int(param)}}
             else:
                 kwargs["thresholds"] = {col: param}
             return kwargs

@@ -15,11 +15,7 @@ from beaverfe.auto_parameters.categorical_features import (
     CategoricalEncodingSpaceGenerator,
 )
 from beaverfe.auto_parameters.distribution_n_scale import (
-    NonLinearTransformationSpaceGenerator,
-    NormalizationSpaceGenerator,
     NormalizerSpaceGenerator,
-    QuantileTransformationSpaceGenerator,
-    ScaleTransformationSpaceGenerator,
 )
 from beaverfe.auto_parameters.features_reduction import (
     ColumnSelectionSpaceGenerator,
@@ -392,7 +388,7 @@ class TestMathematicalOperationsSpaceGenerator:
             X, list(X.columns)
         )
 
-        selected = gen._select_top_k_by_mutual_info(X, y, operation_candidates, top_k=1)
+        selected = gen._select_top_k_mrmr(X, y, operation_candidates, top_k=1)
 
         assert selected
         col_a, col_b, _op = transformations_map[selected[0]]
@@ -452,107 +448,6 @@ class TestCategoricalEncodingSpaceGenerator:
 
 
 # ---------------------------------------------------------------------------
-# 10. NonLinearTransformationSpaceGenerator
-# ---------------------------------------------------------------------------
-
-
-class TestNonLinearTransformationSpaceGenerator:
-    def test_should_return_nonlinear_keys_when_skewed_columns_present(self, numeric_df):
-        X, y = numeric_df
-        # Column "c" is exponential and should be skewed
-        gen = NonLinearTransformationSpaceGenerator()
-        space = gen.get_search_space(X, y)
-        assert isinstance(space, dict)
-        # At least the skewed column should appear
-        assert len(space) > 0
-        for options in space.values():
-            assert "none" in options
-            assert "yeo_johnson" in options
-
-    def test_should_return_dict_when_low_skew_data(self):
-        # Uniform distribution: low skew, below threshold
-        rng = np.random.default_rng(0)
-        X = pd.DataFrame({"u": rng.uniform(0, 1, 200)})
-        y = pd.Series(rng.choice([0, 1], 200))
-        gen = NonLinearTransformationSpaceGenerator()
-        space = gen.get_search_space(X, y)
-        # May or may not be empty depending on actual skew; accept either
-        assert isinstance(space, dict)
-
-
-# ---------------------------------------------------------------------------
-# 11. NormalizationSpaceGenerator
-# ---------------------------------------------------------------------------
-
-
-class TestNormalizationSpaceGenerator:
-    def test_should_return_normalize_keys_when_numeric_columns_present(
-        self, numeric_df
-    ):
-        X, y = numeric_df
-        gen = NormalizationSpaceGenerator()
-        space = gen.get_search_space(X, y)
-        assert isinstance(space, dict)
-        assert len(space) > 0
-        assert all(k.startswith("normalize_") for k in space)
-        for options in space.values():
-            assert "none" in options
-
-    def test_should_return_empty_space_when_no_numeric_columns(self, categorical_df):
-        X, y = categorical_df
-        gen = NormalizationSpaceGenerator()
-        space = gen.get_search_space(X, y)
-        assert space == {}
-
-
-# ---------------------------------------------------------------------------
-# 12. ScaleTransformationSpaceGenerator
-# ---------------------------------------------------------------------------
-
-
-class TestScaleTransformationSpaceGenerator:
-    def test_should_return_scale_keys_when_numeric_columns_present(self, numeric_df):
-        X, y = numeric_df
-        gen = ScaleTransformationSpaceGenerator()
-        space = gen.get_search_space(X, y)
-        assert isinstance(space, dict)
-        assert len(space) > 0
-        assert all(k.startswith("scale_") for k in space)
-        for options in space.values():
-            assert "none" in options
-            assert "standard" in options
-
-    def test_should_return_empty_space_when_no_numeric_columns(self, categorical_df):
-        X, y = categorical_df
-        gen = ScaleTransformationSpaceGenerator()
-        space = gen.get_search_space(X, y)
-        assert space == {}
-
-
-# ---------------------------------------------------------------------------
-# 13. QuantileTransformationSpaceGenerator
-# ---------------------------------------------------------------------------
-
-
-class TestQuantileTransformationSpaceGenerator:
-    def test_should_return_quantile_keys_when_numeric_columns_present(self, numeric_df):
-        X, y = numeric_df
-        gen = QuantileTransformationSpaceGenerator()
-        space = gen.get_search_space(X, y)
-        assert isinstance(space, dict)
-        assert len(space) > 0
-        assert all(k.startswith("quantile_") for k in space)
-        for options in space.values():
-            assert "none" in options
-
-    def test_should_return_empty_space_when_no_numeric_columns(self, categorical_df):
-        X, y = categorical_df
-        gen = QuantileTransformationSpaceGenerator()
-        space = gen.get_search_space(X, y)
-        assert space == {}
-
-
-# ---------------------------------------------------------------------------
 # 14. NormalizerSpaceGenerator
 # ---------------------------------------------------------------------------
 
@@ -576,6 +471,10 @@ class TestNormalizerSpaceGenerator:
         all_options = {opt for opts in space.values() for opt in opts}
         assert "normalize__l2" in all_options
         assert "scale__standard" in all_options
+        assert "scale__min_max" in all_options
+        assert "scale__max_abs" in all_options
+        assert "scale__robust__10.0" in all_options
+        assert "scale__robust__25.0" in all_options
         assert "quantile__uniform" in all_options
         assert "quantile__normal" in all_options
 
@@ -583,8 +482,10 @@ class TestNormalizerSpaceGenerator:
         X, y = numeric_df
         gen = NormalizerSpaceGenerator()
         space = gen.get_search_space(X, y)
-        # "c" is exponential (skewed); it must offer the nonlinear option.
+        # "c" is exponential (right-skewed positive): must offer yeo_johnson, log and box_cox.
         assert "nonlinear__yeo_johnson" in space["norm_c"]
+        assert "nonlinear__log" in space["norm_c"]
+        assert "nonlinear__box_cox" in space["norm_c"]
         # "a" and "b" are normal; they may or may not be skewed enough.
         # Just verify the key exists for them.
         assert "norm_a" in space
@@ -678,7 +579,7 @@ class TestBoundaryValuesSingleRow:
     def test_should_return_dict_when_scale_generator_receives_single_row(self):
         X = pd.DataFrame({"val": [3.14]})
         y = pd.Series([1])
-        space = ScaleTransformationSpaceGenerator().get_search_space(X, y)
+        space = NormalizerSpaceGenerator().get_search_space(X, y)
         assert isinstance(space, dict)
 
     def test_should_return_dict_when_missing_handler_receives_single_nan_row(self):
@@ -706,7 +607,7 @@ class TestUnicodeColumnNames:
             }
         )
         y = pd.Series(rng.choice([0, 1], 30))
-        space = ScaleTransformationSpaceGenerator().get_search_space(X, y)
+        space = NormalizerSpaceGenerator().get_search_space(X, y)
         assert isinstance(space, dict)
         assert len(space) > 0
 

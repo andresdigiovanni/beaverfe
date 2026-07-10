@@ -8,8 +8,8 @@ from beaverfe.transformations.utils import dtypes
 
 
 class MathematicalOperationsSpaceGenerator(SpaceGenerator):
-    SYMMETRIC_OPERATIONS = ["add", "subtract", "multiply"]
-    NON_SYMMETRIC_OPERATIONS = ["divide"]
+    SYMMETRIC_OPERATIONS = ["add", "multiply"]
+    NON_SYMMETRIC_OPERATIONS = ["subtract", "divide"]
     # Independent slots let Optuna add several generated features together instead
     # of at most one per pipeline (a single flat "math_ops" choice would collapse
     # the whole O(n^2) candidate space into one selectable value).
@@ -20,6 +20,10 @@ class MathematicalOperationsSpaceGenerator(SpaceGenerator):
     # spike on wide datasets. Scoring in chunks bounds peak memory to one
     # chunk's width regardless of how many candidates there are in total.
     CHUNK_SIZE = 200
+    # MRMR pre-filter: before running greedy selection, keep this many times
+    # top_k candidates by raw MI relevance. Bounds the in-memory correlation
+    # matrix to (PRE_FILTER_MULTIPLIER * top_k)^2 entries.
+    PRE_FILTER_MULTIPLIER = 3
 
     def get_search_space(
         self, X: pd.DataFrame, y: pd.Series | np.ndarray
@@ -38,7 +42,7 @@ class MathematicalOperationsSpaceGenerator(SpaceGenerator):
         if not operation_candidates:
             return {}
 
-        selected = self._select_top_k_by_mutual_info(X, y, operation_candidates, top_k)
+        selected = self._select_top_k_mrmr(X, y, operation_candidates, top_k)
 
         encoded_ops: list[str] = []
         for col in selected:
@@ -83,20 +87,35 @@ class MathematicalOperationsSpaceGenerator(SpaceGenerator):
         return definitions
 
     # LOOK-AHEAD NOTE (menu-curation bias, not label leakage into the shipped model):
-    # This MI ranking uses the full dataset, including rows that will later serve as
-    # CV validation folds. This makes the Optuna search space mildly optimistic
-    # relative to true generalization. Severity: LOW — only the offered menu is
-    # affected, not the final model's feature values. Pass validation_fraction > 0
-    # to MathematicalOperationsSpaceGenerator to limit this to a training slice.
-    def _select_top_k_by_mutual_info(
+    # Phase-1 MI ranking and phase-2 MRMR correlation both use the full dataset,
+    # including rows that will later serve as CV validation folds. This makes the
+    # Optuna search space mildly optimistic relative to true generalization.
+    # Severity: LOW — only the offered menu is affected, not the final model's
+    # feature values. Pass validation_fraction > 0 to limit this to a training slice.
+    def _select_top_k_mrmr(
         self,
         X: pd.DataFrame,
         y: pd.Series | np.ndarray,
         operation_candidates: list[tuple],
         top_k: int,
     ) -> list[str]:
-        scored: list[tuple[str, float]] = []
+        """Two-phase MRMR selection.
 
+        Phase 1 (chunked): score all candidates by MI(f, y); retain the top
+        PRE_FILTER_MULTIPLIER * top_k as pre-filtered candidates. This bounds
+        peak memory to one chunk's width regardless of total candidate count.
+
+        Phase 2 (in-memory): materialize the pre-filtered candidates, then run
+        greedy MRMR initialized with the original X columns. The redundancy set
+        starts with the original features so that candidates that merely replicate
+        existing columns are penalized from the first selection step.
+        """
+        pre_filter_k = min(
+            top_k * self.PRE_FILTER_MULTIPLIER, len(operation_candidates)
+        )
+        relevance_scores: dict[str, float] = {}
+
+        # --- Phase 1: relevance scoring in chunks ---
         for chunk_start in range(0, len(operation_candidates), self.CHUNK_SIZE):
             chunk = operation_candidates[chunk_start : chunk_start + self.CHUNK_SIZE]
             chunk_transformer = MathematicalOperations(chunk)
@@ -111,10 +130,96 @@ class MathematicalOperationsSpaceGenerator(SpaceGenerator):
                 if c not in X.columns and not c.endswith("__is_invalid")
             ]
             if new_cols:
-                scored.extend(self._score_columns(X_chunk[new_cols], y))
+                for name, score in self._score_columns(X_chunk[new_cols], y):
+                    relevance_scores[name] = score
 
-        scored.sort(key=lambda item: item[1], reverse=True)
-        return [name for name, score in scored[:top_k] if score > 0]
+        if not relevance_scores:
+            return []
+
+        sorted_by_relevance = sorted(
+            relevance_scores.items(), key=lambda item: item[1], reverse=True
+        )
+        pre_filtered = [
+            name for name, score in sorted_by_relevance[:pre_filter_k] if score > 0
+        ]
+        if not pre_filtered:
+            return []
+
+        # --- Phase 2: greedy MRMR on pre-filtered candidates ---
+        # Build a local name→tuple map to re-materialise only the pre-filtered set.
+        local_map: dict[str, tuple] = {
+            f"{col1}__{op}__{col2}": (col1, col2, op)
+            for col1, col2, op in operation_candidates
+        }
+        pre_filtered_tuples = [
+            local_map[name] for name in pre_filtered if name in local_map
+        ]
+        if not pre_filtered_tuples:
+            return [
+                name
+                for name, _ in sorted_by_relevance[:top_k]
+                if relevance_scores.get(name, 0) > 0
+            ]
+
+        try:
+            X_pre = MathematicalOperations(pre_filtered_tuples).fit_transform(X)
+        except (TypeError, ValueError):
+            return [
+                name
+                for name, _ in sorted_by_relevance[:top_k]
+                if relevance_scores.get(name, 0) > 0
+            ]
+
+        cand_cols = [
+            c
+            for c in pre_filtered
+            if c in X_pre.columns and not c.endswith("__is_invalid")
+        ]
+        if not cand_cols:
+            return [
+                name
+                for name, _ in sorted_by_relevance[:top_k]
+                if relevance_scores.get(name, 0) > 0
+            ]
+
+        X_orig_vals = X.select_dtypes(include="number").values  # (n, n_orig)
+        X_cand_vals = X_pre[cand_cols].values  # (n, n_cand)
+        n_cand = len(cand_cols)
+        n_orig = X_orig_vals.shape[1]
+
+        # Correlation matrix over [candidates | original columns]
+        combined = np.hstack([X_cand_vals, X_orig_vals]).T  # (n_cand+n_orig, n)
+        corr_abs = np.abs(np.nan_to_num(np.corrcoef(combined), nan=0.0))
+        corr_cand_cand = corr_abs[:n_cand, :n_cand]  # (n_cand, n_cand)
+        corr_cand_orig = corr_abs[:n_cand, n_cand:]  # (n_cand, n_orig)
+
+        relevance_arr = np.array(
+            [relevance_scores.get(name, 0.0) for name in cand_cols]
+        )
+
+        # Greedy selection: redundancy set S is initialised with original X columns.
+        accumulated_redundancy = corr_cand_orig.sum(axis=1).copy()
+        n_in_set = max(n_orig, 1)
+        remaining_mask = np.ones(n_cand, dtype=bool)
+        selected_indices: list[int] = []
+
+        while len(selected_indices) < top_k and remaining_mask.any():
+            mrmr_scores = np.where(
+                remaining_mask,
+                relevance_arr - accumulated_redundancy / n_in_set,
+                -np.inf,
+            )
+            best_idx = int(np.argmax(mrmr_scores))
+
+            if relevance_arr[best_idx] <= 0:
+                break
+
+            selected_indices.append(best_idx)
+            remaining_mask[best_idx] = False
+            accumulated_redundancy += corr_cand_cand[:, best_idx]
+            n_in_set += 1
+
+        return [cand_cols[i] for i in selected_indices]
 
     def _score_columns(
         self, X_block: pd.DataFrame, y: pd.Series | np.ndarray

@@ -150,17 +150,17 @@ Beaver FE was evaluated on several datasets and models to assess its impact on m
 | Dataset | Model                | Baseline | BeaverFE | Improvement |
 |---------|----------------------|----------|----------|-------------|
 | **adult** |                      |          |          |             |
-|          | LDA                  | 0.842    | 0.908    | +7.84%      |
-|          | LogisticRegression   | 0.815    | 0.911    | +11.78%      |
-|          | XGBoost              | 0.921    | 0.924    | +0.33%      |
+|          | LDA                  | 0.842    | 0.910    | +8.08%      |
+|          | LogisticRegression   | 0.815    | 0.914    | +12.15%      |
+|          | XGBoost              | 0.921    | 0.923    | +0.22%      |
 | **bank**  |                      |          |          |             |
-|          | LDA                  | 0.873    | 0.910    | +4.24%      |
-|          | LogisticRegression   | 0.852    | 0.915    | +7.39%      |
-|          | XGBoost              | 0.927    | 0.932    | +0.54%      |
+|          | LDA                  | 0.873    | 0.911    | +4.35%      |
+|          | LogisticRegression   | 0.852    | 0.913    | +7.16%      |
+|          | XGBoost              | 0.927    | 0.931    | +0.43%      |
 | **credit**|                      |          |          |             |
-|          | LDA                  | 0.717    | 0.775    | +8.09%      |
-|          | LogisticRegression   | 0.722    | 0.773    | +7.06%      |
-|          | XGBoost              | 0.760    | 0.757    | -0.39%      |
+|          | LDA                  | 0.717    | 0.771    | +7.53%      |
+|          | LogisticRegression   | 0.722    | 0.775    | +7.34%      |
+|          | XGBoost              | 0.760    | 0.761    | +0.13%      |
 
 
 ![Benchmark Performance Chart](assets/benchmark_results.png)
@@ -241,7 +241,7 @@ from beaverfe import auto_feature_pipeline
 - `model`: A scikit-learn-compatible estimator implementing a `fit` method.
 - `scoring` (`str`): Evaluation metric (e.g., `"accuracy"`, `"f1"`, `"roc_auc"`).
 - `direction` (`str`, optional): Optimization direction: `"maximize"` or `"minimize"`. Default is `"maximize"`.
-- `cv` (`int` or callable, optional): Cross-validation strategy (e.g., number of folds or a custom splitter). Default is `None`.
+- `cv` (`int` or callable, optional): Cross-validation strategy (e.g., number of folds or a custom splitter). Default is 5.
 - `groups` (`np.ndarray`, optional): Group labels for cross-validation. Useful for grouped CV. Default is `None`.
 - `timeout` (`int` or `None`, optional): Time budget in seconds for the Bayesian optimisation search. Default is `600`. Set to `None` to disable the time limit.
 - `n_trials` (`int` or `None`, optional): Maximum number of Optuna trials. Default is `100`. Set to `None` to disable the trial limit.
@@ -253,15 +253,15 @@ Transformations are applied in the following canonical order:
 
 1. Datetime feature extraction
 2. Missing value indicators
-3. Missing value imputation
+3. Missing value imputation (`fill_0`, `mean`, `median`, `most_frequent`, `knn`)
 4. Cyclical feature expansion
-5. Outlier handling
-6. Mathematical operations
-7. Spline transformations
-8. Numerical binning
-9. Categorical encoding
-10. Normalisation (exclusive per-column choice: non-linear / scaling / quantile)
-11. Dimensionality reduction
+5. Outlier handling (`iqr` at 1.5 and 2.0, `zscore`, `iforest`, `lof`)
+6. Mathematical operations (pairwise: `add`, `subtract`, `multiply`, `divide`)
+7. Spline transformations (knots: 5/10 · degrees: 2/3)
+8. Numerical binning (`quantile`, `uniform` · 5 or 10 bins)
+9. Categorical encoding (method selected by column cardinality)
+10. Normalisation — exclusive per-column choice: `yeo_johnson`, `log`, `box_cox` (skewed/positive columns), `min_max`, `standard`, `max_abs`, `robust` ×2 ranges, `quantile` uniform/normal
+11. Dimensionality reduction (`pca`, `lda`, `truncated_svd`)
 
 #### **Returns:**
 

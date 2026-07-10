@@ -29,13 +29,20 @@ class CategoricalEncodingSpaceGenerator(SpaceGenerator):
             if n_categories == 2:
                 encoders: list[str] = ["dummy"]
             elif n_categories <= 15:
-                encoders = ["dummy", "catboost", "target"]
+                encoders = ["dummy", "catboost", "target", "count", "james_stein"]
                 if is_binary_target:
                     encoders.append("woe")
             elif n_categories <= 50:
-                encoders = ["catboost", "binary", "target", "loo"]
+                encoders = [
+                    "catboost",
+                    "binary",
+                    "target",
+                    "loo",
+                    "count",
+                    "james_stein",
+                ]
             else:
-                encoders = ["catboost", "hashing", "target"]
+                encoders = ["catboost", "hashing", "target", "count", "james_stein"]
 
             encoding_options[col] = encoders
 

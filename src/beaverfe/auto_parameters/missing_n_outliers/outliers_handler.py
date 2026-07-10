@@ -23,9 +23,10 @@ class OutliersSpaceGenerator(PerColumnSpaceGenerator):
 
     def _get_outlier_methods(self) -> dict[str, dict]:
         return {
-            "iqr": {"thresholds": [1.5]},
+            "iqr": {"thresholds": [1.5, 2.0]},
             "zscore": {"thresholds": [3.0]},
             "iforest": {"contamination": [0.05]},
+            "lof": {"n_neighbors": [20]},
         }
 
     def _get_outlier_actions(self) -> list[str]:
@@ -34,7 +35,9 @@ class OutliersSpaceGenerator(PerColumnSpaceGenerator):
     def _generate_combinations(self, actions: list[str], methods: dict[str, dict]):
         for method, params in methods.items():
             values = next(iter(params.values()))
-            valid_actions = ["median"] if method == "iforest" else actions
+            # iforest and lof support only median (they produce boolean masks,
+            # not bound values, so capping is not meaningful).
+            valid_actions = ["median"] if method in ("iforest", "lof") else actions
             for action, value in product(valid_actions, values):
                 yield action, method, value
 

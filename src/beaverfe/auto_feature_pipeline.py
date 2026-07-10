@@ -31,7 +31,7 @@ def auto_feature_pipeline(
     model: Any,
     scoring: str,
     direction: str = "maximize",
-    cv: int | Callable | None = None,
+    cv: int | Callable | None = 5,
     groups: np.ndarray | None = None,
     timeout: int | None = 600,
     n_trials: int | None = 100,
@@ -47,7 +47,7 @@ def auto_feature_pipeline(
         model: Sklearn-compatible estimator.
         scoring: Scoring metric string for cross-validation.
         direction: "maximize" or "minimize". Defaults to "maximize".
-        cv: Cross-validation strategy. Defaults to None (uses evaluate_model default).
+        cv: Cross-validation strategy. Defaults to 5.
         groups: Group labels for cross-validation splitting. Defaults to None.
         timeout: Seconds budget for Optuna optimisation. Defaults to 600.
         n_trials: Maximum number of Optuna trials. Defaults to 100.

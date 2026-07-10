@@ -8,7 +8,7 @@ from beaverfe.auto_parameters.shared.space_generator import PerColumnSpaceGenera
 class SplineTransformationSpaceGenerator(PerColumnSpaceGenerator):
     prefix = "spline"
     N_KNOTS_OPTIONS = [5, 10]
-    DEGREE_OPTIONS = [3]
+    DEGREE_OPTIONS = [2, 3]
     EXTRAPOLATION_OPTIONS = ["linear"]
 
     def _options_for_column(self, X: pd.DataFrame, col: str) -> list[str]:

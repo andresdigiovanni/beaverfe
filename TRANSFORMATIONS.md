@@ -114,10 +114,12 @@ OutliersHandler(
 
 ### **Non-Linear Transformation**
 
-Applies logarithmic, exponential, or Yeo-Johnson transformations.
+Applies logarithmic, exponential, Box-Cox or Yeo-Johnson transformations.
 
 - Parameters:
-    - `transformation_options`: A dictionary specifying the transformation to be applied for each column. Options include: `log`, `exponential`, and `yeo_johnson`.
+    - `transformation_options`: A dictionary specifying the transformation to be applied for each column. Options include: `log`, `exponential`, `yeo_johnson`, `box_cox`.
+
+> **Note:** `box_cox` requires all values in the column to be strictly positive.
 
 ```python
 from beaverfe.transformations import NonLinearTransformation
@@ -127,6 +129,7 @@ NonLinearTransformation(
         "sepal length (cm)": "log",
         "sepal width (cm)": "exponential",
         "petal length (cm)": "yeo_johnson",
+        "petal width (cm)": "box_cox",
     }
 )
 ```
