@@ -8,8 +8,14 @@ from beaverfe.transformations.utils import dtypes
 
 
 class MathematicalOperationsSpaceGenerator(SpaceGenerator):
-    SYMMETRIC_OPERATIONS = ["add", "multiply"]
-    NON_SYMMETRIC_OPERATIONS = ["subtract", "divide"]
+    SYMMETRIC_OPERATIONS = ["add", "multiply", "mean", "hypotenuse", "min", "max"]
+    NON_SYMMETRIC_OPERATIONS = [
+        "subtract",
+        "divide",
+        "modulus",
+        "power",
+        "log_ratio",
+    ]
     # Independent slots let Optuna add several generated features together instead
     # of at most one per pipeline (a single flat "math_ops" choice would collapse
     # the whole O(n^2) candidate space into one selectable value).

@@ -242,7 +242,7 @@ Performs mathematical operations between columns.
 - Parameters:
     - `operations_options`: List of tuples specifying the columns and the operation.
 
-- **Options**: `add`, `subtract`, `multiply`, `divide`, `modulus`, `hypotenuse`, `mean`.
+- **Options**: `add`, `subtract`, `multiply`, `divide`, `modulus`, `hypotenuse`, `mean`, `power`, `min`, `max`, `log_ratio`.
 
 ```python
 from beaverfe.transformations import MathematicalOperations
@@ -256,6 +256,10 @@ MathematicalOperations(
         ('sepal length (cm)', 'petal width (cm)', 'modulus'),
         ('sepal length (cm)', 'sepal width (cm)', 'hypotenuse'),
         ('petal length (cm)', 'petal width (cm)', 'mean'),
+        ('sepal length (cm)', 'petal width (cm)', 'power'),
+        ('sepal width (cm)', 'petal length (cm)', 'min'),
+        ('sepal width (cm)', 'petal length (cm)', 'max'),
+        ('sepal length (cm)', 'petal length (cm)', 'log_ratio'),
     ]
 )
 ```

@@ -48,6 +48,18 @@ class MathematicalOperations(BaseEstimator, TransformerMixin):
             elif operation == "mean":
                 result = (X[col1] + X[col2]) / 2
 
+            elif operation == "power":
+                result = np.power(X[col1], X[col2])
+
+            elif operation == "min":
+                result = np.minimum(X[col1], X[col2])
+
+            elif operation == "max":
+                result = np.maximum(X[col1], X[col2])
+
+            elif operation == "log_ratio":
+                result = np.log(X[col1] / X[col2])
+
             else:
                 continue
 

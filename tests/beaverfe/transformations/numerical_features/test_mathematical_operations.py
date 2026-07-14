@@ -134,3 +134,50 @@ class TestMathematicalOperations:
         result = transformer.transform(X_transform)
 
         assert result["A__divide__B__is_invalid"].tolist() == [1, 1, 1]
+
+    def test_power_operation(self):
+        data = pd.DataFrame({"A": [2.0, 3.0, 4.0], "B": [2.0, 2.0, 0.5]})
+        transformer = MathematicalOperations(operations_options=[("A", "B", "power")])
+
+        result = transformer.transform(data)
+
+        assert result["A__power__B"].tolist() == [4.0, 9.0, 2.0]
+
+    def test_min_operation(self):
+        data = pd.DataFrame({"A": [1.0, 5.0, 3.0], "B": [4.0, 2.0, 3.0]})
+        transformer = MathematicalOperations(operations_options=[("A", "B", "min")])
+
+        result = transformer.transform(data)
+
+        assert result["A__min__B"].tolist() == [1.0, 2.0, 3.0]
+
+    def test_max_operation(self):
+        data = pd.DataFrame({"A": [1.0, 5.0, 3.0], "B": [4.0, 2.0, 3.0]})
+        transformer = MathematicalOperations(operations_options=[("A", "B", "max")])
+
+        result = transformer.transform(data)
+
+        assert result["A__max__B"].tolist() == [4.0, 5.0, 3.0]
+
+    def test_log_ratio_operation(self):
+        data = pd.DataFrame({"A": [np.e, 1.0], "B": [1.0, 1.0]})
+        transformer = MathematicalOperations(
+            operations_options=[("A", "B", "log_ratio")]
+        )
+
+        result = transformer.transform(data)
+
+        assert result["A__log_ratio__B"].tolist() == [1.0, 0.0]
+
+    def test_log_ratio_non_positive_generates_is_invalid_flag(self):
+        # log of a non-positive ratio is NaN/-inf and must be flagged invalid.
+        data = pd.DataFrame({"A": [-1.0, 2.0], "B": [1.0, 1.0]})
+        transformer = MathematicalOperations(
+            operations_options=[("A", "B", "log_ratio")]
+        )
+
+        result = transformer.transform(data)
+
+        flag_col = "A__log_ratio__B__is_invalid"
+        assert flag_col in result.columns
+        assert result[flag_col].tolist() == [1, 0]
