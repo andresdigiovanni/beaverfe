@@ -59,6 +59,28 @@ class TestPruneEliminatedColumns:
         # Assert
         assert result[0]["params"]["operations_options"] == [("a", "b", "multiply")]
 
+    def test_should_drop_three_column_math_operations_referencing_eliminated_columns(
+        self,
+    ):
+        # Arrange: (a + b) * c should be dropped because c is eliminated.
+        transformer_dicts = [
+            {
+                "name": "MathematicalOperations",
+                "params": {
+                    "operations_options": [
+                        (("a", "b", "add"), "c", "multiply"),
+                        ("a", "b", "multiply"),
+                    ]
+                },
+            }
+        ]
+
+        # Act
+        result = _prune_eliminated_columns(transformer_dicts, keep={"a", "b"})
+
+        # Assert
+        assert result[0]["params"]["operations_options"] == [("a", "b", "multiply")]
+
     def test_should_prune_features_list_when_column_eliminated(self):
         # Arrange
         transformer_dicts = [
@@ -257,6 +279,27 @@ class TestUpdateExtendedKeep:
         assert "a__divide__b" in extended_keep
         assert "a__divide__b__is_invalid" in extended_keep
 
+    def test_math_operations_three_column_adds_generated_and_invalid_columns(self):
+        extended_keep: set[str] = {"a", "b", "c"}
+        params = {"operations_options": [(("a", "b", "add"), "c", "multiply")]}
+        _update_extended_keep("MathematicalOperations", params, extended_keep)
+        assert "(a__add__b)__multiply__c" in extended_keep
+        assert "(a__add__b)__multiply__c__is_invalid" in extended_keep
+
+    def test_math_operations_standalone_unary_adds_generated_and_invalid_columns(self):
+        extended_keep: set[str] = {"a"}
+        params = {"operations_options": [("a", "square")]}
+        _update_extended_keep("MathematicalOperations", params, extended_keep)
+        assert "a__square" in extended_keep
+        assert "a__square__is_invalid" in extended_keep
+
+    def test_math_operations_nested_unary_operand_adds_generated_column(self):
+        extended_keep: set[str] = {"a", "b"}
+        params = {"operations_options": [(("a", "square"), "b", "add")]}
+        _update_extended_keep("MathematicalOperations", params, extended_keep)
+        assert "(a__square)__add__b" in extended_keep
+        assert "(a__square)__add__b__is_invalid" in extended_keep
+
     def test_numerical_binning_adds_binned_column_name(self):
         extended_keep: set[str] = {"x"}
         params = {"transformation_options": {"x": ("quantile", 10)}}
@@ -282,6 +325,59 @@ class TestPruneBySelectedTransformed:
         selected = {"a__add__b"}
         result = _prune_by_selected_transformed(dicts, selected)
         assert result[0]["params"]["operations_options"] == [("a", "b", "add")]
+
+    def test_math_ops_three_column_removes_operations_not_in_selected(self):
+        dicts = [
+            {
+                "name": "MathematicalOperations",
+                "params": {
+                    "operations_options": [
+                        (("a", "b", "add"), "c", "multiply"),
+                        ("a", "b", "add"),
+                    ]
+                },
+            }
+        ]
+        selected = {"(a__add__b)__multiply__c"}
+        result = _prune_by_selected_transformed(dicts, selected)
+        assert result[0]["params"]["operations_options"] == [
+            (("a", "b", "add"), "c", "multiply")
+        ]
+
+    def test_math_ops_standalone_unary_removes_operations_not_in_selected(self):
+        dicts = [
+            {
+                "name": "MathematicalOperations",
+                "params": {
+                    "operations_options": [
+                        ("a", "square"),
+                        ("b", "sqrt"),
+                    ]
+                },
+            }
+        ]
+        selected = {"a__square"}
+        result = _prune_by_selected_transformed(dicts, selected)
+        assert result[0]["params"]["operations_options"] == [("a", "square")]
+
+    def test_math_ops_nested_unary_operand_removes_operations_not_in_selected(self):
+        dicts = [
+            {
+                "name": "MathematicalOperations",
+                "params": {
+                    "operations_options": [
+                        (("a", "square"), "b", "add"),
+                        ("a", "c", "add"),
+                    ]
+                },
+            }
+        ]
+        selected = {"(a__square)__add__b"}
+        result = _prune_by_selected_transformed(dicts, selected)
+        assert result[0]["params"]["operations_options"] == [
+            (("a", "square"), "b", "add")
+        ]
+
 
     def test_math_ops_step_removed_when_all_ops_eliminated(self):
         dicts = [

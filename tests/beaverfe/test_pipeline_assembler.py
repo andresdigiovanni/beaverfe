@@ -85,8 +85,8 @@ class TestPipelineAssemblerDecodeMathOps:
         # Arrange
         assembler = PipelineAssembler()
         params = {
-            "math_ops_1": "colA__multiply__colB",
-            "math_ops_2": "colC__divide__colD",
+            "math_ops_1": repr(("colA", "colB", "multiply")),
+            "math_ops_2": repr(("colC", "colD", "divide")),
             "math_ops_3": "none",
         }
 
@@ -106,8 +106,8 @@ class TestPipelineAssemblerDecodeMathOps:
         # Arrange
         assembler = PipelineAssembler()
         params = {
-            "math_ops_1": "colA__multiply__colB",
-            "math_ops_2": "colA__multiply__colB",
+            "math_ops_1": repr(("colA", "colB", "multiply")),
+            "math_ops_2": repr(("colA", "colB", "multiply")),
         }
 
         # Act
@@ -117,6 +117,91 @@ class TestPipelineAssemblerDecodeMathOps:
         assert result[0]["params"]["operations_options"] == [
             ("colA", "colB", "multiply")
         ]
+
+    def test_should_decode_three_column_chained_operation(self):
+        # Arrange: (colA add colB) multiply colC
+        assembler = PipelineAssembler()
+        params = {
+            "math_ops_1": repr((("colA", "colB", "add"), "colC", "multiply")),
+        }
+
+        # Act
+        result = assembler._decode_math_ops(params)
+
+        # Assert
+        assert result[0]["params"]["operations_options"] == [
+            (("colA", "colB", "add"), "colC", "multiply")
+        ]
+
+    def test_should_decode_binary_combination_of_two_composite_expressions(self):
+        # Arrange: (colA add colB) multiply (colC subtract colD) — both
+        # operands are themselves composite expressions, proving the decoder
+        # is agnostic to arbitrary nesting depth/shape (it just round-trips
+        # whatever ast.literal_eval parses).
+        assembler = PipelineAssembler()
+        expr = (("colA", "colB", "add"), ("colC", "colD", "subtract"), "multiply")
+        params = {"math_ops_1": repr(expr)}
+
+        # Act
+        result = assembler._decode_math_ops(params)
+
+        # Assert
+        assert result[0]["params"]["operations_options"] == [expr]
+
+    def test_should_collect_mixed_two_and_three_column_operations(self):
+        # Arrange
+        assembler = PipelineAssembler()
+        params = {
+            "math_ops_1": repr(("colA", "colB", "multiply")),
+            "math_ops_2": repr((("colA", "colB", "add"), "colC", "multiply")),
+        }
+
+        # Act
+        result = assembler._decode_math_ops(params)
+
+        # Assert
+        assert set(result[0]["params"]["operations_options"]) == {
+            ("colA", "colB", "multiply"),
+            (("colA", "colB", "add"), "colC", "multiply"),
+        }
+
+    def test_should_decode_standalone_unary_operation(self):
+        # Arrange: standalone unary, e.g. squaring a column
+        assembler = PipelineAssembler()
+        params = {"math_ops_1": repr(("colA", "square"))}
+
+        # Act
+        result = assembler._decode_math_ops(params)
+
+        # Assert
+        assert result[0]["params"]["operations_options"] == [("colA", "square")]
+
+    def test_should_decode_nested_unary_operand_operation(self):
+        # Arrange: square(colA) + colB
+        assembler = PipelineAssembler()
+        params = {"math_ops_1": repr((("colA", "square"), "colB", "add"))}
+
+        # Act
+        result = assembler._decode_math_ops(params)
+
+        # Assert
+        assert result[0]["params"]["operations_options"] == [
+            (("colA", "square"), "colB", "add")
+        ]
+
+    def test_should_skip_corrupt_or_non_tuple_values(self):
+        # Arrange: invalid literal and a value that evals but isn't a tuple
+        assembler = PipelineAssembler()
+        params = {
+            "math_ops_1": "not a valid literal(",
+            "math_ops_2": "['colA', 'colB']",
+        }
+
+        # Act
+        result = assembler._decode_math_ops(params)
+
+        # Assert
+        assert result == []
 
 
 class TestPipelineAssemblerTreeGating:
@@ -155,8 +240,8 @@ class TestPipelineAssemblerDynamicSpaces:
                 "b": [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 100.0],
             }
         )
-        params = {"math_ops_1": "a__multiply__b"}
-        spaces = {"math_ops_1": ["none", "a__multiply__b"]}
+        params = {"math_ops_1": "('a', 'b', 'multiply')"}
+        spaces = {"math_ops_1": ["none", "('a', 'b', 'multiply')"]}
 
         # Act
         dynamic_spaces = assembler._discover_dynamic_spaces(
@@ -175,7 +260,7 @@ class TestPipelineAssemblerDynamicSpaces:
         assembler = PipelineAssembler()
         X = pd.DataFrame({"a": [1.0, 2.0, 3.0]})
         params = {"math_ops_1": "none"}
-        spaces = {"math_ops_1": ["none", "a__multiply__b"]}
+        spaces = {"math_ops_1": ["none", "('a', 'b', 'multiply')"]}
 
         # Act
         dynamic_spaces = assembler._discover_dynamic_spaces(
@@ -189,8 +274,8 @@ class TestPipelineAssemblerDynamicSpaces:
         # Arrange
         assembler = PipelineAssembler()
         X = pd.DataFrame({"a": [1.0, 2.0, 3.0], "b": [4.0, 5.0, 6.0]})
-        params = {"math_ops_1": "a__multiply__b"}
-        spaces = {"math_ops_1": ["none", "a__multiply__b"]}
+        params = {"math_ops_1": "('a', 'b', 'multiply')"}
+        spaces = {"math_ops_1": ["none", "('a', 'b', 'multiply')"]}
 
         # Act
         dynamic_spaces = assembler._discover_dynamic_spaces(
@@ -205,7 +290,7 @@ class TestPipelineAssemblerDynamicSpaces:
         # Arrange
         assembler = PipelineAssembler()
         trial = _FakeTrial()
-        spaces = {"math_ops_1": ["none", "a__multiply__b"]}
+        spaces = {"math_ops_1": ["none", "('a', 'b', 'multiply')"]}
 
         # Act
         assembler.assemble(trial, spaces, model_type="other")
@@ -230,9 +315,9 @@ class TestIsInvalidFlagExclusion:
                 "b": [2.0, 0.0, 4.0, 0.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0],
             }
         )
-        params = {"math_ops_1": "a__divide__b"}
+        params = {"math_ops_1": "('a', 'b', 'divide')"}
         spaces = {
-            "math_ops_1": ["none", "a__divide__b"],
+            "math_ops_1": ["none", "('a', 'b', 'divide')"],
             "column_selection_candidates": [["a", "b"]],
         }
 
@@ -267,9 +352,9 @@ class TestIsInvalidFlagExclusion:
                 "b": [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0],
             }
         )
-        params = {"math_ops_1": "a__divide__b"}
+        params = {"math_ops_1": "('a', 'b', 'divide')"}
         spaces = {
-            "math_ops_1": ["none", "a__divide__b"],
+            "math_ops_1": ["none", "('a', 'b', 'divide')"],
             "column_selection_candidates": [["a", "b"]],
         }
 
@@ -301,7 +386,7 @@ class TestDimReductionColumnVisibility:
         # Spaces: math-op that produces "a__multiply__b", plus dim-reduction,
         # plus the original column_selection_candidates covering only a and b.
         spaces = {
-            "math_ops_1": ["none", "a__multiply__b"],
+            "math_ops_1": ["none", "('a', 'b', 'multiply')"],
             "dim_reduction_method": ["none", "pca"],
             "dim_reduction_n_components": [2],
             "column_selection_candidates": [["a", "b"]],
@@ -320,7 +405,7 @@ class TestDimReductionColumnVisibility:
 
         trial = _SelectingTrial(
             {
-                "math_ops_1": "a__multiply__b",
+                "math_ops_1": "('a', 'b', 'multiply')",
                 "dim_reduction_method": "pca",
                 "dim_reduction_n_components": 2,
             }

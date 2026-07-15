@@ -2,6 +2,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from beaverfe.transformations import MathematicalOperations
 
@@ -180,4 +181,340 @@ class TestMathematicalOperations:
 
         flag_col = "A__log_ratio__B__is_invalid"
         assert flag_col in result.columns
+
+    def test_three_column_chained_operation(self):
+        # (A + B) * C
+        data = pd.DataFrame({"A": [1.0, 2.0], "B": [2.0, 3.0], "C": [3.0, 4.0]})
+        transformer = MathematicalOperations(
+            operations_options=[(("A", "B", "add"), "C", "multiply")]
+        )
+
+        result = transformer.transform(data)
+
+        new_col = "(A__add__B)__multiply__C"
+        assert new_col in result.columns
+        assert result[new_col].tolist() == [9.0, 20.0]
+
+    def test_three_column_chained_operation_different_ops(self):
+        # (A - B) / C
+        data = pd.DataFrame({"A": [10.0, 8.0], "B": [4.0, 2.0], "C": [2.0, 3.0]})
+        transformer = MathematicalOperations(
+            operations_options=[(("A", "B", "subtract"), "C", "divide")]
+        )
+
+        result = transformer.transform(data)
+
+        new_col = "(A__subtract__B)__divide__C"
+        assert result[new_col].tolist() == [3.0, 2.0]
+
+    def test_three_column_operation_propagates_invalid_flag(self):
+        # (A / B) where B has a zero -> inf -> flagged invalid, then * C.
+        data = pd.DataFrame({"A": [1.0, 4.0], "B": [0.0, 2.0], "C": [5.0, 5.0]})
+        transformer = MathematicalOperations(
+            operations_options=[(("A", "B", "divide"), "C", "multiply")]
+        )
+
+        result = transformer.transform(data)
+
+        flag_col = "(A__divide__B)__multiply__C__is_invalid"
+        assert flag_col in result.columns
         assert result[flag_col].tolist() == [1, 0]
+
+    def test_three_column_operation_tracks_all_input_columns(self):
+        data = pd.DataFrame({"A": [1.0], "B": [2.0], "C": [3.0]})
+        transformer = MathematicalOperations(
+            operations_options=[(("A", "B", "add"), "C", "multiply")],
+            track_columns=True,
+        )
+
+        transformer.transform(data)
+
+        assert transformer.tracked_columns["(A__add__B)__multiply__C"] == [
+            "A",
+            "B",
+            "C",
+        ]
+
+    def test_unknown_operation_in_three_column_chain_is_skipped(self):
+        data = pd.DataFrame({"A": [1.0], "B": [2.0], "C": [3.0]})
+        transformer = MathematicalOperations(
+            operations_options=[(("A", "B", "bogus_op"), "C", "multiply")]
+        )
+
+        result = transformer.transform(data)
+
+        assert "A__bogus_op__B__multiply__C" not in result.columns
+
+    # --- Unary operations (standalone) ---
+
+    def test_square_unary_operation(self):
+        data = pd.DataFrame({"A": [1.0, 2.0, 3.0]})
+        transformer = MathematicalOperations(operations_options=[("A", "square")])
+
+        result = transformer.transform(data)
+
+        assert result["A__square"].tolist() == [1.0, 4.0, 9.0]
+
+    def test_cube_unary_operation(self):
+        data = pd.DataFrame({"A": [1.0, 2.0, -3.0]})
+        transformer = MathematicalOperations(operations_options=[("A", "cube")])
+
+        result = transformer.transform(data)
+
+        assert result["A__cube"].tolist() == [1.0, 8.0, -27.0]
+
+    def test_sqrt_unary_operation(self):
+        data = pd.DataFrame({"A": [4.0, 9.0]})
+        transformer = MathematicalOperations(operations_options=[("A", "sqrt")])
+
+        result = transformer.transform(data)
+
+        assert result["A__sqrt"].tolist() == [2.0, 3.0]
+
+    def test_sqrt_of_negative_generates_is_invalid_flag(self):
+        data = pd.DataFrame({"A": [4.0, -9.0]})
+        transformer = MathematicalOperations(operations_options=[("A", "sqrt")])
+
+        result = transformer.transform(data)
+
+        flag_col = "A__sqrt__is_invalid"
+        assert flag_col in result.columns
+        assert result[flag_col].tolist() == [0, 1]
+        assert result["A__sqrt"].tolist() == [2.0, 0.0]
+
+    def test_cbrt_unary_operation_handles_negative_values(self):
+        data = pd.DataFrame({"A": [8.0, -8.0]})
+        transformer = MathematicalOperations(operations_options=[("A", "cbrt")])
+
+        result = transformer.transform(data)
+
+        assert result["A__cbrt"].tolist() == [2.0, -2.0]
+        assert "A__cbrt__is_invalid" not in result.columns
+
+    def test_reciprocal_unary_operation(self):
+        data = pd.DataFrame({"A": [2.0, 4.0]})
+        transformer = MathematicalOperations(operations_options=[("A", "reciprocal")])
+
+        result = transformer.transform(data)
+
+        assert result["A__reciprocal"].tolist() == [0.5, 0.25]
+
+    def test_reciprocal_of_zero_generates_is_invalid_flag(self):
+        data = pd.DataFrame({"A": [2.0, 0.0]})
+        transformer = MathematicalOperations(operations_options=[("A", "reciprocal")])
+
+        result = transformer.transform(data)
+
+        flag_col = "A__reciprocal__is_invalid"
+        assert flag_col in result.columns
+        assert result[flag_col].tolist() == [0, 1]
+
+    def test_abs_unary_operation(self):
+        data = pd.DataFrame({"A": [-3.0, 3.0, 0.0]})
+        transformer = MathematicalOperations(operations_options=[("A", "abs")])
+
+        result = transformer.transform(data)
+
+        assert result["A__abs"].tolist() == [3.0, 3.0, 0.0]
+
+    def test_unknown_unary_operation_is_skipped(self):
+        data = pd.DataFrame({"A": [1.0, 2.0]})
+        transformer = MathematicalOperations(operations_options=[("A", "bogus_unary")])
+
+        result = transformer.transform(data)
+
+        assert "A__bogus_unary" not in result.columns
+
+    # --- Binary/triple operations with unary-transformed operands ---
+
+    def test_binary_operation_with_unary_first_operand(self):
+        # square(a) + b
+        data = pd.DataFrame({"A": [1.0, 2.0, 3.0], "B": [10.0, 10.0, 10.0]})
+        transformer = MathematicalOperations(
+            operations_options=[(("A", "square"), "B", "add")]
+        )
+
+        result = transformer.transform(data)
+
+        new_col = "(A__square)__add__B"
+        assert new_col in result.columns
+        assert result[new_col].tolist() == [11.0, 14.0, 19.0]
+
+    def test_binary_operation_with_unary_second_operand(self):
+        # a + sqrt(b)
+        data = pd.DataFrame({"A": [1.0, 2.0], "B": [4.0, 9.0]})
+        transformer = MathematicalOperations(
+            operations_options=[("A", ("B", "sqrt"), "add")]
+        )
+
+        result = transformer.transform(data)
+
+        new_col = "A__add__(B__sqrt)"
+        assert new_col in result.columns
+        assert result[new_col].tolist() == [3.0, 5.0]
+
+    def test_binary_operation_with_unary_both_operands(self):
+        # square(a) * cube(b)
+        data = pd.DataFrame({"A": [2.0, 3.0], "B": [1.0, 2.0]})
+        transformer = MathematicalOperations(
+            operations_options=[(("A", "square"), ("B", "cube"), "multiply")]
+        )
+
+        result = transformer.transform(data)
+
+        new_col = "(A__square)__multiply__(B__cube)"
+        assert result[new_col].tolist() == [4.0, 72.0]
+
+    def test_triple_operation_with_unary_operands(self):
+        # (a**2 + b) * sqrt(c)
+        data = pd.DataFrame(
+            {"A": [1.0, 2.0], "B": [3.0, 4.0], "C": [4.0, 9.0]}
+        )
+        transformer = MathematicalOperations(
+            operations_options=[
+                ((("A", "square"), "B", "add"), ("C", "sqrt"), "multiply")
+            ]
+        )
+
+        result = transformer.transform(data)
+
+        new_col = "((A__square)__add__B)__multiply__(C__sqrt)"
+        assert new_col in result.columns
+        # Row 1: (1 + 3) * 2 = 8 ; Row 2: (4 + 4) * 3 = 24
+        assert result[new_col].tolist() == [8.0, 24.0]
+
+    def test_triple_operation_tracks_root_columns_not_operand_tuples(self):
+        data = pd.DataFrame({"A": [1.0], "B": [2.0], "C": [3.0]})
+        transformer = MathematicalOperations(
+            operations_options=[
+                ((("A", "square"), "B", "add"), ("C", "sqrt"), "multiply")
+            ],
+            track_columns=True,
+        )
+
+        transformer.transform(data)
+
+        new_col = "((A__square)__add__B)__multiply__(C__sqrt)"
+        assert transformer.tracked_columns[new_col] == ["A", "B", "C"]
+
+    def test_binary_operation_skipped_when_unary_operand_uses_unknown_op(self):
+        data = pd.DataFrame({"A": [1.0], "B": [2.0]})
+        transformer = MathematicalOperations(
+            operations_options=[(("A", "bogus_unary"), "B", "add")]
+        )
+
+        result = transformer.transform(data)
+
+        assert "A__bogus_unary__add__B" not in result.columns
+
+    # --- Recursive grammar: previously-ambiguous / previously-impossible shapes ---
+
+    def test_nested_binary_left_associative_matches_explicit_nesting(self):
+        # (A + B) * C, expressed as an explicit nested tuple instead of the
+        # old ambiguous flat 5-tuple (A, "add", B, "multiply", C).
+        data = pd.DataFrame({"A": [1.0, 2.0], "B": [2.0, 3.0], "C": [3.0, 4.0]})
+        transformer = MathematicalOperations(
+            operations_options=[(("A", "B", "add"), "C", "multiply")]
+        )
+
+        result = transformer.transform(data)
+
+        assert result["(A__add__B)__multiply__C"].tolist() == [9.0, 20.0]
+
+    def test_nested_binary_right_associative_now_representable(self):
+        # A + (B * C) — previously impossible to express at all; the old
+        # flat 5-tuple grammar could only encode left-to-right chaining.
+        data = pd.DataFrame({"A": [1.0, 2.0], "B": [2.0, 3.0], "C": [3.0, 4.0]})
+        transformer = MathematicalOperations(
+            operations_options=[("A", ("B", "C", "multiply"), "add")]
+        )
+
+        result = transformer.transform(data)
+
+        new_col = "A__add__(B__multiply__C)"
+        assert result[new_col].tolist() == [7.0, 14.0]
+
+    def test_unary_of_composite_binary_expression(self):
+        # square(A + B) — unary now wraps a composite sub-expression, not
+        # just a single raw column.
+        data = pd.DataFrame({"A": [1.0, 2.0], "B": [2.0, 3.0]})
+        transformer = MathematicalOperations(
+            operations_options=[(("A", "B", "add"), "square")]
+        )
+
+        result = transformer.transform(data)
+
+        new_col = "(A__add__B)__square"
+        assert result[new_col].tolist() == [9.0, 25.0]
+
+    def test_binary_combination_of_two_composite_expressions(self):
+        # (A + B) - (C * D) — both operands of the outer binary op are
+        # themselves composite expressions.
+        data = pd.DataFrame(
+            {"A": [5.0], "B": [3.0], "C": [2.0], "D": [4.0]}
+        )
+        transformer = MathematicalOperations(
+            operations_options=[
+                (("A", "B", "add"), ("C", "D", "multiply"), "subtract")
+            ]
+        )
+
+        result = transformer.transform(data)
+
+        new_col = "(A__add__B)__subtract__(C__multiply__D)"
+        # (5 + 3) - (2 * 4) = 8 - 8 = 0
+        assert result[new_col].tolist() == [0.0]
+
+    def test_deeply_nested_expression_depth_four(self):
+        # ((A**2 + B) * sqrt(C)) - D : depth-4 nested expression, proving the
+        # recursion has no artificial depth cap.
+        data = pd.DataFrame(
+            {"A": [1.0], "B": [3.0], "C": [4.0], "D": [1.0]}
+        )
+        transformer = MathematicalOperations(
+            operations_options=[
+                (
+                    ((("A", "square"), "B", "add"), ("C", "sqrt"), "multiply"),
+                    "D",
+                    "subtract",
+                )
+            ]
+        )
+
+        result = transformer.transform(data)
+
+        new_col = "(((A__square)__add__B)__multiply__(C__sqrt))__subtract__D"
+        # (1 + 3) * 2 - 1 = 8 - 1 = 7
+        assert result[new_col].tolist() == [7.0]
+
+    def test_bare_column_name_at_top_level_is_skipped(self):
+        # A bare str entry at the top level applies no transformation and
+        # would produce a duplicate-named column (same name as the raw
+        # column) — intentionally rejected/skipped rather than silently
+        # corrupting the DataFrame with a duplicate "A" column.
+        data = pd.DataFrame({"A": [1.0, 2.0]})
+        transformer = MathematicalOperations(operations_options=["A"])
+
+        result = transformer.transform(data)
+
+        assert list(result.columns) == ["A"]
+
+    def test_five_element_flat_tuple_shape_is_no_longer_supported(self):
+        # The old ambiguous flat chained shape (operand1, op1, operand2, op2,
+        # operand3) is intentionally unsupported now — describe_operation
+        # raises for it, so transform() skips it instead of guessing an
+        # evaluation order.
+        data = pd.DataFrame({"A": [1.0], "B": [2.0], "C": [3.0]})
+        transformer = MathematicalOperations(
+            operations_options=[("A", "add", "B", "multiply", "C")]
+        )
+
+        result = transformer.transform(data)
+
+        assert list(result.columns) == ["A", "B", "C"]
+
+        with pytest.raises(ValueError):
+            MathematicalOperations.describe_operation(
+                ("A", "add", "B", "multiply", "C")
+            )
+

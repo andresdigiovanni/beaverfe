@@ -1,3 +1,4 @@
+import ast
 from typing import Any
 
 import pandas as pd
@@ -443,18 +444,29 @@ class PipelineAssembler:
         ]
 
     def _decode_math_ops(self, params: dict[str, Any]) -> list[dict]:
-        operations: list[tuple[str, str, str]] = []
-        seen: set[tuple[str, str, str]] = set()
+        operations: list[tuple] = []
+        seen: set[tuple] = set()
 
         for key, value in params.items():
             if not key.startswith("math_ops_") or not value or value == "none":
                 continue
-            # value is encoded as "col_a__op__col_b"
-            parts = str(value).split("__")
-            if len(parts) != 3:
+            # Values are encoded as repr() of the operation tuple (see
+            # MathematicalOperationsSpaceGenerator.get_search_space), not as
+            # a "__"-joined column name: once operands can themselves be
+            # nested (col, unary_op) tuples (e.g. squaring or square-rooting
+            # a column before combining it with another), a flat "__"-split
+            # name is no longer reliably reversible — different operation
+            # shapes can legitimately produce identically-shaped split
+            # results. ast.literal_eval safely reconstructs the tuple
+            # (including nested tuples) without executing arbitrary code.
+            try:
+                op_tuple = ast.literal_eval(str(value))
+            except (ValueError, SyntaxError):
                 continue
-            col_a, op, col_b = parts
-            op_tuple = (col_a, col_b, op)
+
+            if not isinstance(op_tuple, tuple):
+                continue
+
             if op_tuple not in seen:
                 seen.add(op_tuple)
                 operations.append(op_tuple)

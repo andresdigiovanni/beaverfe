@@ -7,10 +7,13 @@ Each generator gets:
 No model fitting or cross-validation inside these tests.
 """
 
+import ast
+
 import numpy as np
 import pandas as pd
 import pytest
 
+from beaverfe.transformations import MathematicalOperations
 from beaverfe.auto_parameters.categorical_features import (
     CategoricalEncodingSpaceGenerator,
 )
@@ -388,7 +391,9 @@ class TestMathematicalOperationsSpaceGenerator:
             X, list(X.columns)
         )
 
-        selected = gen._select_top_k_mrmr(X, y, operation_candidates, top_k=1)
+        selected = gen._select_top_k_mrmr(
+            X, y, operation_candidates, top_k=1, transformations_map=transformations_map
+        )
 
         assert selected
         col_a, col_b, _op = transformations_map[selected[0]]
@@ -399,6 +404,301 @@ class TestMathematicalOperationsSpaceGenerator:
         gen = MathematicalOperationsSpaceGenerator()
         space = gen.get_search_space(X, y)
         assert space == {}
+
+    def test_expand_level_is_bounded_not_full_cross_product(self):
+        # With n columns, the full O(n^2 * ops) expansion of every previous
+        # candidate would be huge; the generic expansion must stay bounded to
+        # only the top TOP_CANDIDATES_PER_LEVEL previous candidates, each
+        # combined with every column via a binary op, or wrapped in a unary
+        # op.
+        rng = np.random.default_rng(0)
+        n = 60
+        columns = [f"col{i}" for i in range(10)]
+        X = pd.DataFrame({c: rng.normal(size=n) for c in columns})
+        y = rng.integers(0, 2, size=n)
+
+        gen = MathematicalOperationsSpaceGenerator()
+        transformations_map, pair_candidates = gen._generate_operations(X, columns)
+        pair_relevance = gen._score_candidates(X, y, pair_candidates)
+
+        expanded = gen._expand_level(pair_relevance, columns, transformations_map)
+
+        max_expected = gen.TOP_CANDIDATES_PER_LEVEL * (
+            len(columns) * len(gen.ALL_OPERATIONS) + len(gen.UNARY_OPERATIONS)
+        )
+        assert len(expanded) <= max_expected
+        # Every generated candidate is either a 2-tuple (unary wrap) or a
+        # 3-tuple (binary combination) per the recursive grammar — no more
+        # flat 5-element chained shape.
+        assert all(len(t) in (2, 3) for t in expanded)
+
+    def test_expand_level_returns_empty_without_prior_relevance(self):
+        gen = MathematicalOperationsSpaceGenerator()
+        expanded = gen._expand_level({}, ["a", "b"], {})
+        assert expanded == []
+
+    def test_expand_level_skips_columns_already_used_by_base_expression(self):
+        # Extending (a add b) with "a" again would produce a degenerate
+        # candidate like (a + b) - a; such combinations must be skipped.
+        gen = MathematicalOperationsSpaceGenerator()
+        pair_relevance = {"a__add__b": 1.0}
+        transformations_map = {"a__add__b": ("a", "b", "add")}
+
+        expanded = gen._expand_level(
+            pair_relevance, ["a", "b", "c"], transformations_map
+        )
+
+        binary_candidates = [t for t in expanded if len(t) == 3]
+        used_third_columns = {t[1] for t in binary_candidates}
+        assert used_third_columns == {"c"}
+
+    def test_expand_level_can_wrap_a_prior_candidate_in_a_unary_op(self):
+        gen = MathematicalOperationsSpaceGenerator()
+        pair_relevance = {"a__add__b": 1.0}
+        transformations_map = {"a__add__b": ("a", "b", "add")}
+
+        expanded = gen._expand_level(
+            pair_relevance, ["a", "b"], transformations_map
+        )
+
+        assert (("a", "b", "add"), "square") in expanded
+
+    def test_root_columns_flattens_arbitrary_nesting(self):
+        gen = MathematicalOperationsSpaceGenerator
+        assert gen._root_columns("a") == {"a"}
+        assert gen._root_columns(("a", "square")) == {"a"}
+        assert gen._root_columns(("a", "b", "add")) == {"a", "b"}
+        assert gen._root_columns(
+            ((("a", "square"), "b", "add"), ("c", "sqrt"), "multiply")
+        ) == {"a", "b", "c"}
+
+    def test_describe_operation_matches_transformer_naming_for_all_arities(self):
+        assert (
+            MathematicalOperations.describe_operation(("a", "b", "add"))
+            == "a__add__b"
+        )
+        assert (
+            MathematicalOperations.describe_operation((("a", "b", "add"), "c", "multiply"))
+            == "(a__add__b)__multiply__c"
+        )
+        assert MathematicalOperations.describe_operation(("a", "square")) == "a__square"
+        assert (
+            MathematicalOperations.describe_operation((("a", "square"), "b", "add"))
+            == "(a__square)__add__b"
+        )
+
+    def test_search_space_can_include_three_column_candidate(self):
+        # A strong 2-column signal (a + b) combined with a third column via
+        # multiply should be discoverable as a nested 3-tuple operation when
+        # it is genuinely useful.
+        rng = np.random.default_rng(1)
+        n = 300
+        a = rng.normal(size=n)
+        b = rng.normal(size=n)
+        c = rng.normal(size=n)
+        target = (a + b) * c
+        y = (target > np.median(target)).astype(int)
+
+        X = pd.DataFrame(
+            {
+                "a": a,
+                "b": b,
+                "c": c,
+                "noise1": rng.normal(size=n),
+                "noise2": rng.normal(size=n),
+            }
+        )
+
+        gen = MathematicalOperationsSpaceGenerator()
+        space = gen.get_search_space(X, y)
+
+        assert "math_ops_1" in space
+        options = space["math_ops_1"]
+        decoded = [ast.literal_eval(opt) for opt in options if opt != "none"]
+        # The composite (a + b) * c may itself be further expanded (e.g.
+        # wrapped in a unary op) before the final MRMR selection, so check
+        # for any candidate that references all three original columns —
+        # proof that the depth-2 combination was found and built upon —
+        # rather than requiring the bare, unwrapped 3-tuple to survive.
+        has_composite = any(
+            MathematicalOperationsSpaceGenerator._root_columns(op_tuple)
+            >= {"a", "b", "c"}
+            for op_tuple in decoded
+        )
+        assert has_composite
+
+    def test_search_space_expands_up_to_max_depth(self):
+        # With MAX_DEPTH forced to 3, the search space must be able to
+        # surface a depth-3 composite candidate: (a + b) combined with a
+        # third column, wrapped or combined again.
+        rng = np.random.default_rng(4)
+        n = 300
+        a = rng.normal(size=n)
+        b = rng.normal(size=n)
+        c = rng.normal(size=n)
+        target = ((a + b) * c) ** 2
+        y = (target > np.median(target)).astype(int)
+
+        X = pd.DataFrame(
+            {
+                "a": a,
+                "b": b,
+                "c": c,
+                "noise1": rng.normal(size=n),
+            }
+        )
+
+        gen = MathematicalOperationsSpaceGenerator()
+        gen.MAX_DEPTH = 3
+        space = gen.get_search_space(X, y)
+
+        assert "math_ops_1" in space
+        decoded = [
+            ast.literal_eval(opt) for opt in space["math_ops_1"] if opt != "none"
+        ]
+        # At least one candidate must reference all of a, b and c, proving
+        # depth > 2 expansion actually happened.
+        assert any(
+            MathematicalOperationsSpaceGenerator._root_columns(op_tuple)
+            >= {"a", "b", "c"}
+            for op_tuple in decoded
+        )
+
+    def test_best_unary_per_column_picks_top_scoring_transform(self):
+        # square(a) is perfectly correlated with y; other unary variants of
+        # "a" and all variants of "noise" are not -> only "a" should surface,
+        # with "square" as its best transform.
+        rng = np.random.default_rng(0)
+        n = 200
+        a = rng.uniform(1, 5, size=n)
+        y = (a**2 > np.median(a**2)).astype(int)
+        X = pd.DataFrame({"a": a, "noise": rng.normal(size=n)})
+
+        gen = MathematicalOperationsSpaceGenerator()
+        best_unary = gen._best_unary_per_column(X, y, list(X.columns))
+
+        assert "a" in best_unary
+        # square(a) and cube(a) are both perfectly monotonic in a (a > 0),
+        # so either can legitimately be the top-scoring transform; at most
+        # UNARY_TOP_K_PER_COLUMN options are kept, all with positive score.
+        assert 1 <= len(best_unary["a"]) <= gen.UNARY_TOP_K_PER_COLUMN
+        ops = {op for op, _score in best_unary["a"]}
+        assert ops <= {"square", "cube"}
+        assert all(score > 0 for _op, score in best_unary["a"])
+
+    def test_best_unary_per_column_bounds_to_top_k(self):
+        # Even if more than UNARY_TOP_K_PER_COLUMN unary transforms score
+        # above zero for a column, only the top UNARY_TOP_K_PER_COLUMN are
+        # kept, sorted best-first.
+        rng = np.random.default_rng(0)
+        n = 200
+        a = rng.uniform(1, 5, size=n)
+        y = (a > np.median(a)).astype(int)
+        X = pd.DataFrame({"a": a})
+
+        gen = MathematicalOperationsSpaceGenerator()
+        best_unary = gen._best_unary_per_column(X, y, list(X.columns))
+
+        assert len(best_unary["a"]) <= gen.UNARY_TOP_K_PER_COLUMN
+        scores = [score for _op, score in best_unary["a"]]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_augment_pairs_with_unary_generates_bounded_variants(self):
+        # Superseded by _expand_level: unary-wrapping a top pair, and
+        # combining it with a raw column, are both handled generically now.
+        gen = MathematicalOperationsSpaceGenerator()
+        pair_relevance = {"a__add__b": 1.0}
+        transformations_map = {"a__add__b": ("a", "b", "add")}
+
+        expanded = gen._expand_level(
+            pair_relevance, ["a", "b"], transformations_map
+        )
+
+        assert (("a", "b", "add"), "square") in expanded
+        assert (("a", "b", "add"), "sqrt") in expanded
+
+    def test_generate_triple_operations_includes_unary_third_column_variant(self):
+        # Superseded by _expand_level: combining a top pair with a third raw
+        # column is the generic binary-expansion path.
+        gen = MathematicalOperationsSpaceGenerator()
+        pair_relevance = {"a__add__b": 1.0}
+        transformations_map = {"a__add__b": ("a", "b", "add")}
+
+        expanded = gen._expand_level(
+            pair_relevance, ["a", "b", "c"], transformations_map
+        )
+
+        assert (("a", "b", "add"), "c", "multiply") in expanded
+        assert (("a", "b", "add"), "c", "add") in expanded
+
+    def test_search_space_encodes_options_as_reversible_tuple_repr(self):
+        # The Optuna-facing choice string must be ast.literal_eval-able back
+        # into the exact operation tuple (repr/literal_eval round trip),
+        # since column names are no longer the decoding mechanism.
+        rng = np.random.default_rng(2)
+        n = 200
+        X = pd.DataFrame(
+            {
+                "a": rng.normal(size=n),
+                "b": rng.normal(size=n),
+                "c": rng.normal(size=n),
+            }
+        )
+        y = rng.integers(0, 2, size=n)
+
+        gen = MathematicalOperationsSpaceGenerator()
+        space = gen.get_search_space(X, y)
+
+        assert "math_ops_1" in space
+        for option in space["math_ops_1"]:
+            if option == "none":
+                continue
+            op_tuple = ast.literal_eval(option)
+            assert isinstance(op_tuple, tuple)
+            assert repr(op_tuple) == option
+
+    def test_search_space_can_include_standalone_unary_candidate(self):
+        # square(a) is perfectly correlated with y -> the standalone unary
+        # candidate ("a", "square") should be discoverable in the search
+        # space, encoded as its tuple repr. Using a symmetric range for "a"
+        # (including negatives) makes "square" the uniquely-informative unary
+        # transform here: "cube" stays monotonic in "a" and is uncorrelated
+        # with the symmetric-in-"a" target, unlike in a positive-only range
+        # where square and cube would be equally (and ambiguously) informative.
+        rng = np.random.default_rng(3)
+        n = 300
+        a = rng.uniform(-5, 5, size=n)
+        y = (a**2 > np.median(a**2)).astype(int)
+        X = pd.DataFrame(
+            {
+                "a": a,
+                "noise1": rng.normal(size=n),
+                "noise2": rng.normal(size=n),
+            }
+        )
+
+        gen = MathematicalOperationsSpaceGenerator()
+        space = gen.get_search_space(X, y)
+
+        assert "math_ops_1" in space
+        decoded = [
+            ast.literal_eval(opt) for opt in space["math_ops_1"] if opt != "none"
+        ]
+
+        def _contains_square_of_a(expr) -> bool:
+            if expr == ("a", "square"):
+                return True
+            if isinstance(expr, str):
+                return False
+            return any(_contains_square_of_a(part) for part in expr)
+
+        # The iterative expansion may have since combined ("a", "square")
+        # into deeper composite candidates (e.g. wrapped in another unary op,
+        # or combined with a further column) that out-rank the bare
+        # candidate in the final MRMR selection — so instead of requiring
+        # the exact bare tuple to survive, just confirm it is present
+        # somewhere in the selected menu, standalone or nested.
+        assert any(_contains_square_of_a(op_tuple) for op_tuple in decoded)
 
 
 # ---------------------------------------------------------------------------

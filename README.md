@@ -256,7 +256,7 @@ Transformations are applied in the following canonical order:
 3. Missing value imputation (`fill_0`, `mean`, `median`, `most_frequent`, `knn`)
 4. Cyclical feature expansion
 5. Outlier handling (`iqr` at 1.5 and 2.0, `zscore`, `iforest`, `lof`)
-6. Mathematical operations (pairwise: `add`, `subtract`, `multiply`, `divide`)
+6. Mathematical operations (binary: `add`, `subtract`, `multiply`, `divide`, `modulus`, `hypotenuse`, `mean`, `power`, `min`, `max`, `log_ratio`; unary: `square`, `cube`, `sqrt`, `cbrt`, `reciprocal`, `abs`; arbitrarily nested/chained expressions, e.g. `(a + b) * c`)
 7. Spline transformations (knots: 5/10 · degrees: 2/3)
 8. Numerical binning (`quantile`, `uniform` · 5 or 10 bins)
 9. Categorical encoding (method selected by column cardinality)

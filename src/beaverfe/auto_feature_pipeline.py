@@ -20,9 +20,36 @@ from beaverfe.beaver_pipeline import BeaverPipeline
 from beaverfe.model_profiler import DataProfiler, ModelProfiler
 from beaverfe.pipeline_assembler import PipelineAssembler
 from beaverfe.pipeline_blocks import CANONICAL_ORDER
+from beaverfe.transformations import MathematicalOperations
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+
+def _flatten_expr_columns(expr: str | tuple) -> list[str]:
+    """Return the root raw column(s) referenced anywhere inside a
+    MathematicalOperations expression, recursing through the unified grammar
+    `expr := str | (expr, unary_op) | (expr, expr, binary_op)` down to its
+    raw column leaves.
+    """
+    if isinstance(expr, str):
+        return [expr]
+    if len(expr) == 2:
+        sub_expr, _unary_op = expr
+        return _flatten_expr_columns(sub_expr)
+    expr1, expr2, _binary_op = expr
+    return _flatten_expr_columns(expr1) + _flatten_expr_columns(expr2)
+
+
+def _math_op_columns_and_name(op_tuple: tuple) -> tuple[list[str], str]:
+    """Return (root input columns, generated column name) for a
+    MathematicalOperations expression, per the unified recursive grammar
+    `expr := str | (expr, unary_op) | (expr, expr, binary_op)`. Sub-exprs may
+    themselves be raw column names or arbitrarily nested tuples, which are
+    flattened here to their root raw column(s) for pruning/tracking purposes.
+    """
+    name = MathematicalOperations.describe_operation(op_tuple)
+    return _flatten_expr_columns(op_tuple), name
 
 
 def auto_feature_pipeline(
@@ -409,7 +436,9 @@ def _prune_eliminated_columns(
         if d["name"] == "MathematicalOperations":
             operations = params.get("operations_options") or []
             params["operations_options"] = [
-                op for op in operations if op[0] in keep and op[1] in keep
+                op
+                for op in operations
+                if all(c in keep for c in _math_op_columns_and_name(op)[0])
             ]
             if not params["operations_options"]:
                 continue
@@ -462,8 +491,7 @@ def _update_extended_keep(name: str, params: dict, extended_keep: set[str]) -> N
 
     elif name == "MathematicalOperations":
         for op in params.get("operations_options") or []:
-            col1, col2, operation = op[0], op[1], op[2]
-            generated = f"{col1}__{operation}__{col2}"
+            _, generated = _math_op_columns_and_name(op)
             extended_keep.add(generated)
             extended_keep.add(f"{generated}__is_invalid")
 
@@ -505,14 +533,12 @@ def _prune_by_selected_transformed(
 
         if name == "MathematicalOperations":
             for op in params.get("operations_options") or []:
-                col1, col2, operation = op[0], op[1], op[2]
-                generated = f"{col1}__{operation}__{col2}"
+                input_columns, generated = _math_op_columns_and_name(op)
                 if (
                     generated in selected_transformed
                     or f"{generated}__is_invalid" in selected_transformed
                 ):
-                    needed_columns.add(col1)
-                    needed_columns.add(col2)
+                    needed_columns.update(input_columns)
 
         elif name == "SplineTransformation":
             for col in params.get("transformation_options") or {}:
@@ -575,8 +601,11 @@ def _prune_by_selected_transformed(
             params["operations_options"] = [
                 op
                 for op in (params.get("operations_options") or [])
-                if f"{op[0]}__{op[2]}__{op[1]}" in selected_transformed
-                or f"{op[0]}__{op[2]}__{op[1]}__is_invalid" in selected_transformed
+                if (generated := _math_op_columns_and_name(op)[1])
+                and (
+                    generated in selected_transformed
+                    or f"{generated}__is_invalid" in selected_transformed
+                )
             ]
             if not params["operations_options"]:
                 continue

@@ -237,12 +237,33 @@ NumericalBinning(
 
 ### **Mathematical Operations**
 
-Performs mathematical operations between columns.
+Performs mathematical operations between columns, and/or applies a unary
+transformation to a single column.
 
 - Parameters:
-    - `operations_options`: List of tuples specifying the columns and the operation.
+    - `operations_options`: List of expressions, each built from a single recursive grammar:
+        ```
+        expr := column_name (str)
+              | (expr, unary_operation)          # unary transform of any sub-expression
+              | (expr, expr, binary_operation)    # binary combination of two sub-expressions
+        ```
+        Since `expr` can itself be a raw column or another (nested) `expr`, expressions can be combined to arbitrary depth — there is no separate "operand" vs "top-level" shape, and no fixed limit on how many columns an expression can reference:
+        - **Raw column (1 column)**: just the column name — only meaningful when nested inside a larger expression, not as a standalone top-level entry.
+        - **Standalone unary (1 column)**: `(col, unary_operation)` — applies a unary transform to a single column, e.g. `('sepal length (cm)', 'square')`.
+        - **Binary (2 columns)**: `(col1, col2, operation)`, e.g. `('a', 'b', 'add')` computes `a + b`.
+        - **Nested / chained (3+ columns)**: replace either side of a binary expression with another expression to build up arbitrarily complex, *unambiguous* combinations — e.g.:
+            - `(('a', 'b', 'add'), 'c', 'multiply')` computes `(a + b) * c`.
+            - `('a', ('b', 'c', 'multiply'), 'add')` computes `a + (b * c)` — the mirror image, now explicitly representable since evaluation order is determined by the nesting itself, not by left-to-right chaining.
+            - `(('a', 'b', 'add'), 'square')` computes `(a + b) ** 2` — a unary transform applied to a composite sub-expression, not just a raw column.
+        This grammar replaces the previous flat `(col1, op1, col2, op2, col3)` chained shape, which always evaluated left-to-right as `(col1 op1 col2) op2 col3` but visually invited misreading it as respecting operator precedence (e.g. `col1 op1 (col2 op2 col3)`). The new nested-tuple form is unambiguous by construction: the parentheses in the tuple *are* the evaluation order.
+    - **Generated column names**: the output column name mirrors the same nesting, joining pieces with `__` and wrapping any composite sub-expression in parentheses — so the name itself preserves the grouping and stays unambiguous, instead of collapsing back into a flat `__`-joined string that would hide how the expression was actually built. For example:
+        - `('a', 'b', 'add')` → `a__add__b`
+        - `(('a', 'b', 'add'), 'c', 'multiply')` → `(a__add__b)__multiply__c`
+        - `('a', ('b', 'c', 'multiply'), 'add')` → `a__add__(b__multiply__c)`
+        - `(('a', 'b', 'add'), 'square')` → `(a__add__b)__square`
 
-- **Options**: `add`, `subtract`, `multiply`, `divide`, `modulus`, `hypotenuse`, `mean`, `power`, `min`, `max`, `log_ratio`.
+- **Binary options**: `add`, `subtract`, `multiply`, `divide`, `modulus`, `hypotenuse`, `mean`, `power`, `min`, `max`, `log_ratio`.
+- **Unary options**: `square`, `cube`, `sqrt`, `cbrt`, `reciprocal`, `abs`.
 
 ```python
 from beaverfe.transformations import MathematicalOperations
@@ -260,6 +281,23 @@ MathematicalOperations(
         ('sepal width (cm)', 'petal length (cm)', 'min'),
         ('sepal width (cm)', 'petal length (cm)', 'max'),
         ('sepal length (cm)', 'petal length (cm)', 'log_ratio'),
+        # Standalone unary operation: square of sepal length
+        ('sepal length (cm)', 'square'),
+        # Nested: unary transform of a raw column combined with another column
+        # -> square(sepal length) + sepal width
+        (('sepal length (cm)', 'square'), 'sepal width (cm)', 'add'),
+        # Nested / chained: (sepal length + sepal width) * petal length
+        (('sepal length (cm)', 'sepal width (cm)', 'add'), 'petal length (cm)', 'multiply'),
+        # The mirror image is now explicitly representable too:
+        # sepal length + (sepal width * petal length)
+        ('sepal length (cm)', ('sepal width (cm)', 'petal length (cm)', 'multiply'), 'add'),
+        # Unary transform of a composite (nested) expression:
+        # (square(sepal width) + petal length) * cbrt(petal width)
+        (
+            (('sepal width (cm)', 'square'), 'petal length (cm)', 'add'),
+            ('petal width (cm)', 'cbrt'),
+            'multiply',
+        ),
     ]
 )
 ```
