@@ -62,6 +62,7 @@ def auto_feature_pipeline(
     groups: np.ndarray | None = None,
     timeout: int | None = 600,
     n_trials: int | None = 100,
+    patience_ratio: float = 0.2,
     verbose: bool = True,
 ) -> list[dict]:
     """
@@ -78,6 +79,9 @@ def auto_feature_pipeline(
         groups: Group labels for cross-validation splitting. Defaults to None.
         timeout: Seconds budget for Optuna optimisation. Defaults to 600.
         n_trials: Maximum number of Optuna trials. Defaults to 100.
+        patience_ratio: Fraction of the search space size used to compute the
+            early-stopping patience (number of consecutive non-improving
+            trials before stopping). Defaults to 0.2.
         verbose: Whether to print Optuna progress and relevant setup information.
             Third-party library warnings (sklearn, numpy, etc.) are always
             suppressed regardless of this flag. Defaults to True.
@@ -216,7 +220,7 @@ def auto_feature_pipeline(
         # `patience` consecutive complete trials.  Patience scales with the
         # search space size so larger spaces get more exploration before giving
         # up.  Minimum of 20 avoids premature stopping on small spaces.
-        patience = max(20, min(50, len(spaces) // 5))
+        patience = max(20, min(50, int(len(spaces) * patience_ratio)))
         _no_improve_count = [0]
         _best_so_far: list[float] = [
             float("-inf") if direction == "maximize" else float("inf")
